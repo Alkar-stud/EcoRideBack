@@ -66,10 +66,10 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
-    public function showById(int $id): JsonResponse
+    public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
 
-        $preferences = $this->repository->findOneBy(['id' => $id]);
+        $preferences = $this->repository->findOneBy(['id' => $id, 'user' => $user->getId()]);
         if ($preferences) {
             $responseData = $this->serializer->serialize(
                 $preferences,

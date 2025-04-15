@@ -88,9 +88,7 @@ final class SecurityController extends AbstractController
         $responseData = $this->serializer->serialize(
             $user,
             'json',
-            [
-                AbstractNormalizer::IGNORED_ATTRIBUTES => ['password']
-            ]
+            ['groups' => ['user_details']]
         );
 
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);

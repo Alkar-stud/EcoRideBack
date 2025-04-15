@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/vehicle', name: 'app_api_vehicle_')]
@@ -61,7 +62,6 @@ final class VehicleController extends AbstractController{
         $this->manager->persist($vehicle);
         $this->manager->flush();
 
-
         // Redirection vers la route showById avec l'ID créé
         return $this->redirectToRoute('app_api_vehicle_show', ['id' => $vehicle->getId()]);
     }
@@ -100,4 +100,50 @@ final class VehicleController extends AbstractController{
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
     }
 
+    #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
+    public function edit(#[CurrentUser] ?User $user, int $id, Request $request): JsonResponse | RedirectResponse
+    {
+        $vehicle = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
+        if (!$vehicle) {
+            return new JsonResponse(['error' => 'Vehicle not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        // Vérifier et associer l'énergie si elle est présente dans la requête
+        if (isset($data['energy'])) {
+            $energy = $this->energyRepository->find($data['energy']);
+            if (!$energy) {
+                return new JsonResponse(['error' => 'Invalid energy ID'], Response::HTTP_BAD_REQUEST);
+            }
+            $vehicle->setEnergy($energy);
+        }
+
+        // Désérialiser les autres champs de la requête
+        $vehicle = $this->serializer->deserialize(
+            $request->getContent(),
+            Vehicle::class,
+            'json',
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $vehicle]
+        );
+
+        $this->manager->flush();
+
+        // Redirection vers la route showById avec l'ID créé
+        return $this->redirectToRoute('app_api_vehicle_show', ['id' => $vehicle->getId()]);
+    }
+
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    public function delete(int $id): JsonResponse
+    {
+        $vehicle = $this->repository->findOneBy(['id' => $id]);
+        if ($vehicle) {
+            $this->manager->remove($vehicle);
+            $this->manager->flush();
+
+            return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+    }
 }

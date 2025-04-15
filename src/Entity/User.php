@@ -11,6 +11,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Exception;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
@@ -19,9 +20,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['user_basic', 'user_details'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
+    #[Groups(['user_details'])]
     private ?string $email = null;
 
     /**
@@ -37,44 +40,54 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $password = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['user_details'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['user_details'])]
     private ?string $photo = null;
 
     #[ORM\Column]
+    #[Groups(['user_details'])]
     private ?int $credits = null;
 
     #[ORM\Column]
+    #[Groups(['user_details'])]
     private ?bool $isActive = true;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_details'])]
     private ?bool $isDriver = false;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_details'])]
     private ?bool $isPassenger = false;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['user_details'])]
     private ?string $apiToken = null;
 
     #[ORM\Column]
+    #[Groups(['user_details'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_details'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     /**
      * @var Collection<int, Preferences>
      */
     #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
+//    #[Groups(['user_details'])]
     private Collection $preferences;
 
     /**
      * @var Collection<int, Vehicle>
      */
     #[ORM\OneToMany(targetEntity: Vehicle::class, mappedBy: 'owner', orphanRemoval: true)]
+//    #[Groups(['user_details'])]
     private Collection $vehicles;
-
 
     /** @throws Exception */
     public function __construct()
@@ -346,5 +359,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         }
 
         return $this;
+    }
+
+    #[Groups(['user_details'])]
+    public function getVehicleIds(): array
+    {
+        return $this->vehicles->map(fn(Vehicle $vehicle) => $vehicle->getId())->toArray();
+    }
+
+    #[Groups(['user_details'])]
+    public function getPreferenceIds(): array
+    {
+        return $this->preferences->map(fn(Preferences $preference) => $preference->getId())->toArray();
     }
 }
