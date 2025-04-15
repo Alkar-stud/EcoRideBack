@@ -7,6 +7,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: VehicleRepository::class)]
 class Vehicle
@@ -14,39 +15,62 @@ class Vehicle
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['vehicle_basic', 'vehicle_details'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['vehicle_basic', 'vehicle_details'])]
     private ?string $brand = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['vehicle_details'])]
     private ?string $model = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['vehicle_details'])]
     private ?string $color = null;
 
     #[ORM\Column(length: 20)]
+    #[Groups(['vehicle_details'])]
     private ?string $registration = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
+    #[Groups(['vehicle_details'])]
     private ?DateTimeInterface $registrationFirstDate = null;
 
     #[ORM\Column]
+    #[Groups(['vehicle_basic', 'vehicle_details'])]
     private ?int $nbPlace = null;
 
     #[ORM\ManyToOne(inversedBy: 'vehicles')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['vehicle_details'])]
     private ?User $owner = null;
 
+    #[Groups(['vehicle_details'])]
+    public function getOwnerId(): ?int
+    {
+        return $this->owner?->getId();
+    }
+
     #[ORM\Column]
+    #[Groups(['vehicle_details'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['vehicle_details'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['vehicle_details'])]
     private ?Energy $energy = null;
+
+    #[Groups(['vehicle_details'])]
+    public function getEnergyId(): ?int
+    {
+        return $this->energy?->getId();
+    }
 
     public function getId(): ?int
     {
