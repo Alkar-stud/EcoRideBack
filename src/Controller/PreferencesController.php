@@ -27,8 +27,7 @@ final class PreferencesController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly PreferencesRepository  $repository,
-        private readonly SerializerInterface    $serializer,
-        private readonly UrlGeneratorInterface $urlGenerator
+        private readonly SerializerInterface    $serializer
     )
     {
     }
