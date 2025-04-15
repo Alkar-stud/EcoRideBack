@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Repository\PreferencesRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: PreferencesRepository::class)]
 class Preferences
@@ -11,22 +12,28 @@ class Preferences
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['preferences_user'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['preferences_user'])]
     private ?string $libelle = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['preferences_user'])]
     private ?string $description = null;
 
     #[ORM\Column]
+    #[Groups(['preferences_user'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['preferences_user'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
     #[ORM\ManyToOne(inversedBy: 'preferences')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['preferences_user'])]
     private ?User $user = null;
 
     public function getId(): ?int
