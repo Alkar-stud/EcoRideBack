@@ -13,17 +13,14 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
-use Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/account/preferences', name: 'app_api_account_preferences_')]
 final class PreferencesController extends AbstractController
 {
 
-    private const GROUP_PREFERENCES_READ = 'preferences:read';
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly PreferencesRepository  $repository,

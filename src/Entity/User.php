@@ -303,11 +303,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function removePreference(Preferences $preference): static
     {
-        if ($this->preferences->removeElement($preference)) {
+        if ($this->preferences->removeElement($preference) && $preference->getUser() === $this) {
             // set the owning side to null (unless already changed)
-            if ($preference->getUser() === $this) {
-                $preference->setUser(null);
-            }
+            $preference->setUser(null);
         }
 
         return $this;
