@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Repository\UserRepository;
 use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Symfony\Component\Uid\Uuid;
 use Doctrine\ORM\Mapping as ORM;
 use Exception;
@@ -61,11 +63,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $updatedAt = null;
 
+    /**
+     * @var Collection<int, Preferences>
+     */
+    #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
+    private Collection $preferences;
+
 
     /** @throws Exception */
     public function __construct()
     {
         $this->apiToken = Uuid::v4() . bin2hex(random_bytes(10));
+        $this->preferences = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -270,6 +279,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Preferences>
+     */
+    public function getPreferences(): Collection
+    {
+        return $this->preferences;
+    }
+
+    public function addPreference(Preferences $preference): static
+    {
+        if (!$this->preferences->contains($preference)) {
+            $this->preferences->add($preference);
+            $preference->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removePreference(Preferences $preference): static
+    {
+        if ($this->preferences->removeElement($preference)) {
+            // set the owning side to null (unless already changed)
+            if ($preference->getUser() === $this) {
+                $preference->setUser(null);
+            }
+        }
 
         return $this;
     }
