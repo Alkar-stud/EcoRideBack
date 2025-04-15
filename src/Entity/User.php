@@ -45,13 +45,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $credits = null;
 
     #[ORM\Column]
-    private ?bool $isActive = null;
+    private ?bool $isActive = true;
 
     #[ORM\Column(nullable: true)]
-    private ?bool $isDriver = null;
+    private ?bool $isDriver = false;
 
     #[ORM\Column(nullable: true)]
-    private ?bool $isPassenger = null;
+    private ?bool $isPassenger = false;
 
     #[ORM\Column(length: 255)]
     private ?string $apiToken = null;
