@@ -9,7 +9,6 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -30,7 +29,7 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
-    public function add(#[CurrentUser] ?User $user, Request $request): RedirectResponse
+    public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         $preferences = $this->serializer->deserialize($request->getContent(), Preferences::class, 'json');
         $preferences->setCreatedAt(new DateTimeImmutable());
@@ -44,8 +43,17 @@ final class PreferencesController extends AbstractController
         $this->manager->persist($preferences);
         $this->manager->flush();
 
-        // Redirection vers la route showById avec l'ID créé
-        return $this->redirectToRoute('app_api_account_preferences_show', ['id' => $preferences->getId()]);
+        return new JsonResponse(
+            [
+                'id'  => $preferences->getId(),
+                'libelle'  => $preferences->getLibelle(),
+                'description' => $preferences->getDescription(),
+                'createdAt' => $preferences->getCreatedAt(),
+                'updatedAt' => $preferences->getUpdatedAt(),
+                'userId' => $preferences->getUser()->getId()
+            ],
+            Response::HTTP_CREATED
+        );
     }
 
     #[Route('/list/', name: 'showAll', methods: 'GET')]
@@ -71,22 +79,27 @@ final class PreferencesController extends AbstractController
 
         $preferences = $this->repository->findOneBy(['id' => $id, 'user' => $user->getId()]);
         if ($preferences) {
-            $responseData = $this->serializer->serialize(
-                $preferences,
-                'json',
-                ['groups' => ['preferences_user']]
-            );
 
-            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+            return new JsonResponse(
+                [
+                    'id'  => $preferences->getId(),
+                    'libelle'  => $preferences->getLibelle(),
+                    'description' => $preferences->getDescription(),
+                    'createdAt' => $preferences->getCreatedAt(),
+                    'updatedAt' => $preferences->getUpdatedAt(),
+                    'userId' => $preferences->getUser()->getId()
+                ],
+                Response::HTTP_OK
+            );
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
     }
 
     #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
-    public function edit(int $id, Request $request): RedirectResponse | JsonResponse
+    public function edit(#[CurrentUser] ?User $user, int $id, Request $request): JsonResponse
     {
-        $preferences = $this->repository->findOneBy(['id' => $id]);
+        $preferences = $this->repository->findOneBy(['id' => $id , 'user' => $user->getId()]);
 
         if ($preferences) {
             $preferences = $this->serializer->deserialize(
@@ -104,8 +117,17 @@ final class PreferencesController extends AbstractController
 
             $this->manager->flush();
 
-            // Redirection vers la route showById avec l'ID créé
-            return $this->redirectToRoute('app_api_account_preferences_show', ['id' => $preferences->getId()]);
+            return new JsonResponse(
+                [
+                    'id'  => $preferences->getId(),
+                    'libelle'  => $preferences->getLibelle(),
+                    'description' => $preferences->getDescription(),
+                    'createdAt' => $preferences->getCreatedAt(),
+                    'updatedAt' => $preferences->getUpdatedAt(),
+                    'userId' => $preferences->getUser()->getId()
+                ],
+                Response::HTTP_OK
+            );
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);

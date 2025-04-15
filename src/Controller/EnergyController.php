@@ -8,7 +8,6 @@ use App\Repository\EnergyRepository;
 use DateTimeImmutable;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -33,7 +32,7 @@ final class EnergyController extends AbstractController{
     }
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN')]
-    public function add(Request $request): RedirectResponse
+    public function add(Request $request): JsonResponse
     {
         $energy = $this->serializer->deserialize($request->getContent(), Energy::class, 'json');
         $energy->setCreatedAt(new DateTimeImmutable());
@@ -46,8 +45,15 @@ final class EnergyController extends AbstractController{
         $this->manager->persist($energy);
         $this->manager->flush();
 
-        // Redirection vers la route showById avec l'ID créé
-        return $this->redirectToRoute('app_api_account_preferences_show', ['id' => $energy->getId()]);
+        return new JsonResponse(
+            [
+                'id'  => $energy->getId(),
+                'libelle'  => $energy->getLibelle(),
+                'isEco' => $energy->isEco(),
+                'createdAt' => $energy->getCreatedAt()
+            ],
+            Response::HTTP_OK
+        );
     }
     #[Route('/list/', name: 'showAll', methods: 'GET')]
     public function showAll(): JsonResponse

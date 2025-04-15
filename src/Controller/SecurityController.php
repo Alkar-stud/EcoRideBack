@@ -128,15 +128,22 @@ final class SecurityController extends AbstractController
 
         $this->manager->flush();
 
-        $responseData = $this->serializer->serialize(
-            $user,
-            'json',
+        return new JsonResponse(
             [
-                AbstractNormalizer::IGNORED_ATTRIBUTES => ['password']
-            ]
+                'id'  => $user->getId(),
+                'email'  => $user->getEmail(),
+                'roles'  => $user->getRoles(),
+                'pseudo'  => $user->getPseudo(),
+                'photo' => $user->getPhoto(),
+                'credits' => $user->getCredits(),
+                'isDriver' => $user->IsDriver(),
+                'isPassenger' => $user->IsPassenger(),
+                'apiToken' => $user->getApiToken(),
+                'createdAt' => $user->getCreatedAt(),
+                'updatedAt' => $user->getUpdatedAt(),
+            ],
+            Response::HTTP_OK
         );
-
-        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
 
 }
