@@ -143,6 +143,7 @@ final class SecurityController extends AbstractController
                 'credits' => $user->getCredits(),
                 'isDriver' => $user->IsDriver(),
                 'isPassenger' => $user->IsPassenger(),
+                'grade' => $user->getGrade(),
                 'apiToken' => $user->getApiToken(),
                 'createdAt' => $user->getCreatedAt(),
                 'updatedAt' => $user->getUpdatedAt(),

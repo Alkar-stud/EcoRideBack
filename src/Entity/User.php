@@ -90,6 +90,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private Collection $vehicles;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_details'])]
     private ?float $grade = null;
 
     /** @throws Exception */
