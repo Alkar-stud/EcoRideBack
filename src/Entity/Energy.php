@@ -45,7 +45,7 @@ class Energy
 
     public function isEco(): ?bool
     {
-        return $this->isEco;
+        return $this->isEco ?? false;
     }
 
     public function setIsEco(?bool $isEco): static

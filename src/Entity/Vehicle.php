@@ -44,7 +44,6 @@ class Vehicle
 
     #[ORM\ManyToOne(inversedBy: 'vehicles')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['vehicle_details'])]
     private ?User $owner = null;
 
     #[Groups(['vehicle_details'])]
@@ -63,13 +62,25 @@ class Vehicle
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['vehicle_details'])]
     private ?Energy $energy = null;
 
-    #[Groups(['vehicle_details'])]
     public function getEnergyId(): ?int
     {
         return $this->energy?->getId();
+    }
+
+    #[Groups(['vehicle_details'])]
+    public function getEnergyDetails(): ?array
+    {
+        if ($this->energy) {
+            return [
+                'id' => $this->energy->getId(),
+                'libelle' => $this->energy->getLibelle(),
+                'isEco' => $this->energy->isEco(),
+            ];
+        }
+
+        return null;
     }
 
     public function getId(): ?int
@@ -131,7 +142,7 @@ class Vehicle
         return $this->registrationFirstDate;
     }
 
-    public function setRegistrationFirstDate(\DateTimeInterface $registrationFirstDate): static
+    public function setRegistrationFirstDate(DateTimeInterface $registrationFirstDate): static
     {
         // Vérifier si la date est valide
         if (!$registrationFirstDate) {
