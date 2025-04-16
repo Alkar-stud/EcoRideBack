@@ -141,6 +141,7 @@ final class SecurityController extends AbstractController
                 'pseudo'  => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
                 'credits' => $user->getCredits(),
+                'grade' => $user->getGrade(),
                 'isDriver' => $user->IsDriver(),
                 'isPassenger' => $user->IsPassenger(),
                 'apiToken' => $user->getApiToken(),
