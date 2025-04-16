@@ -25,7 +25,6 @@ final class EnergyController extends AbstractController{
         private readonly EntityManagerInterface $manager,
         private readonly EnergyRepository       $repository,
         private readonly SerializerInterface    $serializer,
-        private readonly UrlGeneratorInterface  $urlGenerator,
     )
     {
 
