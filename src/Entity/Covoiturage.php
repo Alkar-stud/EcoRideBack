@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Repository\CovoiturageRepository;
+use DateTimeImmutable;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -22,7 +23,7 @@ class Covoiturage
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
-    private ?\DateTimeImmutable $startingAt = null;
+    private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
     private ?int $tripDuration = null;
@@ -46,6 +47,12 @@ class Covoiturage
      */
     #[ORM\ManyToMany(targetEntity: User::class)]
     private Collection $participants;
+
+    #[ORM\Column]
+    private ?\DateTimeImmutable $createdAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $updatedAt = null;
 
     public function __construct()
     {
@@ -81,12 +88,12 @@ class Covoiturage
         return $this;
     }
 
-    public function getStartingAt(): ?\DateTimeImmutable
+    public function getStartingAt(): ?DateTimeImmutable
     {
         return $this->startingAt;
     }
 
-    public function setStartingAt(\DateTimeImmutable $startingAt): static
+    public function setStartingAt(DateTimeImmutable $startingAt): static
     {
         $this->startingAt = $startingAt;
 
@@ -173,6 +180,30 @@ class Covoiturage
     public function removeParticipant(User $participant): static
     {
         $this->participants->removeElement($participant);
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTimeImmutable $createdAt): static
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function getUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
+    {
+        $this->updatedAt = $updatedAt;
 
         return $this;
     }
