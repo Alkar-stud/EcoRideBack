@@ -78,9 +78,16 @@ final class EnergyController extends AbstractController{
 
         $energy = $this->repository->findOneBy(['id' => $id]);
         if ($energy) {
-            $responseData = $this->serializer->serialize($energy, 'json');
-
-            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+            return new JsonResponse(
+                [
+                    'id'  => $energy->getId(),
+                    'libelle'  => $energy->getLibelle(),
+                    'isEco' => $energy->isEco(),
+                    'createdAt' => $energy->getCreatedAt(),
+                    'updateAt' => $energy->getUpdatedAt()
+                ],
+                Response::HTTP_OK
+            );
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
@@ -108,14 +115,16 @@ final class EnergyController extends AbstractController{
 
             $this->manager->flush();
 
-            $responseData = $this->serializer->serialize($energy, 'json');
-            $location = $this->urlGenerator->generate(
-                'app_api_energy_show',
-                ['id' => $energy->getId()],
-                UrlGeneratorInterface::ABSOLUTE_URL,
+            return new JsonResponse(
+                [
+                    'id'  => $energy->getId(),
+                    'libelle'  => $energy->getLibelle(),
+                    'isEco' => $energy->isEco(),
+                    'createdAt' => $energy->getCreatedAt(),
+                    'updateAt' => $energy->getUpdatedAt()
+                ],
+                Response::HTTP_OK
             );
-
-            return new JsonResponse($responseData, Response::HTTP_OK, ["Location" => $location], true);
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
