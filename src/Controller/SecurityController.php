@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Entity\EcoRide;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -19,7 +20,6 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 final class SecurityController extends AbstractController
 {
     private const MESSAGE_MISSING_CREDENTIALS = 'Missing credentials';
-    private const DEFAULT_VALUE_CREDITS = 0;
 
     public function __construct(
         private readonly EntityManagerInterface $manager,
@@ -48,9 +48,14 @@ final class SecurityController extends AbstractController
             return new JsonResponse(['message' => 'Missing password'], Response::HTTP_BAD_REQUEST);
         }
 
-        //On met les crédits à DEFAULT_VALUE_CREDITS par défaut
-        $user->setCredits(self::DEFAULT_VALUE_CREDITS);
+        // Recherche de l'entité EcoRide avec le libelle "WELCOME_CREDIT"
+        $ecoRide = $this->manager->getRepository(EcoRide::class)->findOneBy(['libelle' => 'WELCOME_CREDIT']);
 
+        // Vérification si l'entité existe et récupération de la valeur des crédits
+        $welcomeCredit = $ecoRide ? (int) $ecoRide->getParameters() : 0;
+
+        // Attribution des crédits à l'utilisateur
+        $user->setCredits($welcomeCredit);
 
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());

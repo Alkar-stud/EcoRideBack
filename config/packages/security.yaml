@@ -37,6 +37,7 @@ security:
         - { path: ^/api/registration, roles : PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles : PUBLIC_ACCESS }
+        - { path: ^/api/ecoride, roles: ROLE_ADMIN }
         - { path: ^/api, roles: [ROLE_USER, ROLE_EMPLOYEE] }
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/admin, roles: ROLE_EMPLOYEE }
