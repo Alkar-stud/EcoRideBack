@@ -89,6 +89,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 //    #[Groups(['user_details'])]
     private Collection $vehicles;
 
+    #[ORM\Column(nullable: true)]
+    private ?float $grade = null;
+
     /** @throws Exception */
     public function __construct()
     {
@@ -371,5 +374,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getPreferenceIds(): array
     {
         return $this->preferences->map(fn(Preferences $preference) => $preference->getId())->toArray();
+    }
+
+    public function getGrade(): ?float
+    {
+        return $this->grade;
+    }
+
+    public function setGrade(float $grade): static
+    {
+        $this->grade = $grade;
+
+        return $this;
     }
 }
