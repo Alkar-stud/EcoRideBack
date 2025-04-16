@@ -10,12 +10,10 @@ use App\Repository\EnergyRepository;
 use DateTimeImmutable;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
-use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/vehicle', name: 'app_api_vehicle_')]
@@ -30,7 +28,7 @@ final class VehicleController extends AbstractController{
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
-    public function add(Request $request): JsonResponse | RedirectResponse
+    public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         $vehicle = $this->serializer->deserialize($request->getContent(), Vehicle::class, 'json');
         $vehicle->setCreatedAt(new DateTimeImmutable());
@@ -102,13 +100,17 @@ final class VehicleController extends AbstractController{
         $vehicles = $this->repository->findBy(['owner' => $user->getId()]);
 
         if ($vehicles) {
-            $responseData = $this->serializer->serialize(
-                $vehicles,
-                'json',
-                ['groups' => ['vehicle_details']]
-            );
+            $responseData = array_map(fn($vehicle) => [
+                'id' => $vehicle->getId(),
+                'brand' => $vehicle->getBrand(),
+                'model' => $vehicle->getModel(),
+                'color' => $vehicle->getColor(),
+                'registration' => $vehicle->getRegistration(),
+                'nbPlace' => $vehicle->getNbPlace(),
+                'energy' => $vehicle->getEnergyDetails(),
+            ], $vehicles);
 
-            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+            return new JsonResponse($responseData, Response::HTTP_OK);
         }
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
     }
@@ -140,7 +142,7 @@ final class VehicleController extends AbstractController{
     }
 
     #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
-    public function edit(#[CurrentUser] ?User $user, int $id, Request $request): JsonResponse | RedirectResponse
+    public function edit(#[CurrentUser] ?User $user, int $id, Request $request): JsonResponse
     {
         $vehicle = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
         if (!$vehicle) {

@@ -31,10 +31,10 @@ class CovoiturageStatusRepository extends ServiceEntityRepository
 //        ;
 //    }
 
-//    public function findOneBySomeField($value): ?CovoiturageStatus
+//   public function findLibelleFromCode($value): ?CovoiturageStatus
 //    {
 //        return $this->createQueryBuilder('c')
-//            ->andWhere('c.exampleField = :val')
+//            ->andWhere('c.code = :val')
 //            ->setParameter('val', $value)
 //            ->getQuery()
 //            ->getOneOrNullResult()

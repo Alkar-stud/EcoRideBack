@@ -32,7 +32,7 @@ class Covoiturage
     private ?int $nbCredit = null;
 
     #[ORM\Column]
-    private ?int $nbPlace = null;
+    private ?int $nbPlaceRemaining = null; // Renommé depuis nbPlace
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
@@ -57,6 +57,9 @@ class Covoiturage
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
     private ?Vehicle $vehicle = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?bool $isClosed = null;
 
     public function __construct()
     {
@@ -128,14 +131,14 @@ class Covoiturage
         return $this;
     }
 
-    public function getNbPlace(): ?int
+    public function getNbPlaceRemaining(): ?int
     {
-        return $this->nbPlace;
+        return $this->nbPlaceRemaining;
     }
 
-    public function setNbPlace(int $nbPlace): static
+    public function setNbPlaceRemaining(int $nbPlaceRemaining): static
     {
-        $this->nbPlace = $nbPlace;
+        $this->nbPlaceRemaining = $nbPlaceRemaining;
 
         return $this;
     }
@@ -220,6 +223,18 @@ class Covoiturage
     public function setVehicle(?Vehicle $vehicle): static
     {
         $this->vehicle = $vehicle;
+
+        return $this;
+    }
+
+    public function isClosed(): ?bool
+    {
+        return $this->isClosed;
+    }
+
+    public function setIsClosed(?bool $isClosed): static
+    {
+        $this->isClosed = $isClosed;
 
         return $this;
     }

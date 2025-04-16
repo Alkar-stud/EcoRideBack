@@ -42,6 +42,7 @@ class Vehicle
     #[Groups(['vehicle_basic', 'vehicle_details'])]
     private ?int $nbPlace = null;
 
+
     #[ORM\ManyToOne(inversedBy: 'vehicles')]
     #[ORM\JoinColumn(nullable: false)]
     private ?User $owner = null;
@@ -162,7 +163,6 @@ class Vehicle
     public function setNbPlace(int $nbPlace): static
     {
         $this->nbPlace = $nbPlace;
-
         return $this;
     }
 

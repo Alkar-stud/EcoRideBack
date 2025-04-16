@@ -23,6 +23,10 @@ class CovoiturageStatus
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $updatedAt = null;
 
+    #[ORM\Column(length: 20)]
+    private ?string $code = null;
+
+
     public function getId(): ?int
     {
         return $this->id;
@@ -63,4 +67,17 @@ class CovoiturageStatus
 
         return $this;
     }
+
+    public function getCode(): ?string
+    {
+        return $this->code;
+    }
+
+    public function setCode(string $code): static
+    {
+        $this->code = $code;
+
+        return $this;
+    }
+
 }
