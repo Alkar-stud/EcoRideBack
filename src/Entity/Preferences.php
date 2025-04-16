@@ -34,8 +34,13 @@ class Preferences
 
     #[ORM\ManyToOne(inversedBy: 'preferences')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['preferences_user'])]
     private ?User $user = null;
+
+    #[Groups(['preferences_user'])]
+    public function getUserId(): ?int
+    {
+        return $this->user?->getId();
+    }
 
     public function getId(): ?int
     {

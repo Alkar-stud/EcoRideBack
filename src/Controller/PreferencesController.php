@@ -134,9 +134,9 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    public function delete(int $id): JsonResponse
+    public function delete(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
-        $preferences = $this->repository->findOneBy(['id' => $id]);
+        $preferences = $this->repository->findOneBy(['id' => $id, 'user' => $user->getId()]);
         if ($preferences) {
             $this->manager->remove($preferences);
             $this->manager->flush();

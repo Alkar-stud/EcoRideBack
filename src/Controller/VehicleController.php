@@ -207,9 +207,9 @@ final class VehicleController extends AbstractController{
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    public function delete(int $id): JsonResponse
+    public function delete(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
-        $vehicle = $this->repository->findOneBy(['id' => $id]);
+        $vehicle = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
         if ($vehicle) {
             $this->manager->remove($vehicle);
             $this->manager->flush();
@@ -217,6 +217,6 @@ final class VehicleController extends AbstractController{
             return new JsonResponse(null, Response::HTTP_NO_CONTENT);
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => 'Vehicle not found'], Response::HTTP_NOT_FOUND);
     }
 }
