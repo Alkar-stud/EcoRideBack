@@ -147,9 +147,18 @@ final class CovoiturageController extends AbstractController{
     }
 
     #[Route('/list/', name: 'showAllOwner', methods: 'GET')]
-    public function showAllOwner(#[CurrentUser] ?User $user): JsonResponse
+    public function showAllOwner(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
-        $covoiturages = $this->repository->findBy(['owner' => $user->getId(), 'isClosed' => null], ['startingAt' => 'ASC']);
+        // Pagination pour les covoiturages
+        $page = $request->query->getInt('page', 1);
+        $limit = $request->query->getInt('limit', 10);
+
+        $covoiturages = $this->repository->findBy(
+            ['owner' => $user->getId(), 'isClosed' => null],
+            ['startingAt' => 'ASC'],
+            $limit,
+            ($page - 1) * $limit
+        );
 
         if ($covoiturages) {
             $responseData = array_map(fn($covoiturage) => [
@@ -208,20 +217,16 @@ final class CovoiturageController extends AbstractController{
             "stop"  => ["initial"=> ["progressing"], "become"=>"validationProcess"],
             "badxp"  => ["initial"=> ["validationProcess"], "become"=>"awaitingValidation"],
             "finish"  => ["initial"=> ["awaitingValidation","validationProcess"], "become"=>"finished"],
-            "cancel"  => ["initial"=> ["coming"], "become"=>"cancelled"]
+            "cancel"  => ["initial"=> ["coming"], "become"=>"canceled"]
         ];
 
         $covoiturage = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
 
         //Vérification si l'action est demandée et est possible
-        if (!isset($dataRequest['action']) || !array_key_exists($dataRequest['action'], $possibleActions)) {
-            return new JsonResponse(
-                [
-                    'error' => 'L\'action demandée n\'est pas réalisable'
-                ],
-                Response::HTTP_FORBIDDEN
-            );
+        $validationResponse = $this->validateEditRequest($dataRequest, $possibleActions);
+        if ($validationResponse !== null) {
+            return $validationResponse;
         }
 
         if ($covoiturage) {
@@ -247,31 +252,7 @@ final class CovoiturageController extends AbstractController{
             //Demande de modification du covoiturage
             if ($dataRequest["action"] === 'update')
             {
-                // Vérification si le covoiturage est à l'état initial
-                if ($initialStatus !== $defaultCovoiturageStatusId) {
-                    return new JsonResponse(
-                        [
-                            'error' => 'Seuls les covoiturages à l\'état `' . $defaultCovoiturageStatusLibelle . '` peuvent être modifiés.'
-                        ],
-                        Response::HTTP_FORBIDDEN
-                    );
-                }
-
-                // Empêcher la modification de certains champs
-                if (isset($dataRequest['status']) || isset($dataRequest['createdAt']) || isset($dataRequest['updatedAt']) || isset($dataRequest['owner']) || isset($dataRequest['isClosed'])) {
-                    return new JsonResponse([
-                        'error' => 'Certains champs ne peuvent pas être modifiés.'
-                    ], Response::HTTP_FORBIDDEN);
-                }
-
-                //Modification
-                $covoiturage = $this->serializer->deserialize(
-                    $request->getContent(),
-                    Covoiturage::class,
-                    'json',
-                    [AbstractNormalizer::OBJECT_TO_POPULATE => $covoiturage]
-                );
-
+                return $this->handleUpdateAction($covoiturage, $dataRequest, $defaultCovoiturageStatusId, $defaultCovoiturageStatusLibelle);
             }
 
             //demande de démarrage du covoiturage
@@ -311,6 +292,7 @@ final class CovoiturageController extends AbstractController{
                         Response::HTTP_FORBIDDEN
                     );
                 }
+                
 
                 $statusId = $covoiturageStatusMap[$possibleActions[$dataRequest['action']]["become"]];
                 $status = $this->manager->getRepository(CovoiturageStatus::class)->find($statusId);
@@ -324,12 +306,10 @@ final class CovoiturageController extends AbstractController{
                 $covoiturage->setStatus($status);
             }
 
-
-
-
-            //Si action == update, il faut modifier dans mongoDB, sinon le supprimer ou vérifier qu'il n'est plus.
-
-
+            //demande d'annulation du covoiturage
+            elseif ($dataRequest['action'] === 'cancel') {
+                return $this->handleCancelAction($covoiturage, $possibleActions);
+            }
 
             $covoiturage->setUpdatedAt(new DateTimeImmutable());
 
@@ -355,6 +335,104 @@ final class CovoiturageController extends AbstractController{
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
 
 
+    }
+
+    private function handleUpdateAction(Covoiturage $covoiturage, array $dataRequest, int $defaultCovoiturageStatusId, string $defaultCovoiturageStatusLibelle): JsonResponse
+    {
+        // Vérification si le covoiturage est à l'état initial
+        if ($covoiturage->getStatus()?->getId() !== $defaultCovoiturageStatusId) {
+            return new JsonResponse(
+                [
+                    'error' => 'Seuls les covoiturages à l\'état `' . $defaultCovoiturageStatusLibelle . '` peuvent être modifiés.'
+                ],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        // Vérification si des passagers sont enregistrés dans la table covoiturage_user
+        $passengerCount = $this->manager->getConnection()->createQueryBuilder()
+            ->select('COUNT(*) as count')
+            ->from('covoiturage_user')
+            ->where('covoiturage_id = :covoiturageId')
+            ->setParameter('covoiturageId', $covoiturage->getId())
+            ->executeQuery()
+            ->fetchOne();
+
+        if ($passengerCount > 0 && isset($dataRequest['nbPlaceRemaining']) === false) {
+            return new JsonResponse([
+                'error' => 'Le covoiturage ne peut pas être modifié car des passagers sont déjà enregistrés.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Empêcher la modification de certains champs
+        $restrictedFields = ['status', 'createdAt', 'updatedAt', 'owner', 'isClosed'];
+        foreach ($restrictedFields as $field) {
+            if (isset($dataRequest[$field])) {
+                return new JsonResponse([
+                    'error' => 'Certains champs ne peuvent pas être modifiés.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+        }
+
+        // Modification des données du covoiturage
+        $this->serializer->deserialize(
+            json_encode($dataRequest),
+            Covoiturage::class,
+            'json',
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $covoiturage]
+        );
+
+        return new JsonResponse([
+            'message' => 'Covoiturage mis à jour avec succès.'
+        ], Response::HTTP_OK);
+    }
+
+    private function validateEditRequest(array $dataRequest, array $possibleActions): ?JsonResponse
+    {
+        if (!isset($dataRequest['action']) || !array_key_exists($dataRequest['action'], $possibleActions)) {
+            return new JsonResponse(
+                [
+                    'error' => 'L\'action demandée n\'est pas réalisable'
+                ],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        return null;
+    }
+
+    private function handleCancelAction(Covoiturage $covoiturage, array $possibleActions): JsonResponse
+    {
+        // Vérification si le statut actuel correspond au statut initial requis pour l'annulation
+        $currentStatusCode = $covoiturage->getStatus()?->getCode();
+        if (!in_array($currentStatusCode, $possibleActions['cancel']['initial'])) {
+            return new JsonResponse(
+                [
+                    'error' => 'Le covoiturage ne peut pas être annulé car son statut actuel ne le permet pas.'
+                ],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+        // Mise à jour du statut en "cancelled"
+        $statusId = $this->manager->getRepository(CovoiturageStatus::class)
+            ->findOneBy(['code' => $possibleActions['cancel']['become']])?->getId();
+
+        if (!$statusId) {
+            return new JsonResponse([
+                'error' => 'Le statut "cancelled" est introuvable.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $status = $this->manager->getRepository(CovoiturageStatus::class)->find($statusId);
+        $covoiturage->setStatus($status);
+        $covoiturage->setUpdatedAt(new DateTimeImmutable());
+
+        $this->manager->flush();
+
+        return new JsonResponse([
+            'message' => 'Le covoiturage a été annulé avec succès.'
+        ], Response::HTTP_OK);
     }
 
 }
