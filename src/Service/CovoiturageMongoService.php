@@ -6,7 +6,7 @@ use MongoDB\Client;
 
 class CovoiturageMongoService
 {
-    private $collection;
+    private \MongoDB\Collection $collection;
 
     public function __construct(string $mongoUri, string $databaseName)
     {
