@@ -13,30 +13,30 @@ class Preferences
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     private ?string $libelle = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     private ?string $description = null;
 
     #[ORM\Column]
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     #[ORM\ManyToOne(inversedBy: 'preferences')]
     #[ORM\JoinColumn(nullable: false)]
     private ?User $user = null;
 
-    #[Groups(['preferences_user'])]
+    #[Groups(['preferences_user', 'user_details'])]
     public function getUserId(): ?int
     {
         return $this->user?->getId();

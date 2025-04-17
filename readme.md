@@ -9,8 +9,9 @@ This project is carried out within the framework of the ECF of Studi.
 
 ## Install
 1. Clone this project
-2. Run `composer install`
-3. Run `symfony server:start -d` to launch your local php web server
+2. Extension php mongodb must be installed. Run if not `pecl install mongodb`
+3. Run `composer install`
+4. Run `symfony server:start -d` to launch your local php web server
 
 ## Database
 1. Create a new ".env.local" file at the root of the project and copy the ".env" file content inside of it.

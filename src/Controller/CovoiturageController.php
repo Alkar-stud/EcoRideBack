@@ -7,9 +7,11 @@ use App\Entity\User;
 use App\Entity\CovoiturageStatus;
 use App\Entity\Vehicle;
 use App\Repository\CovoiturageRepository;
+use App\Service\CovoiturageMongoService;
 use App\Service\CovoiturageService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Exception\ORMException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,15 +25,18 @@ use Symfony\Component\Serializer\SerializerInterface;
 final class CovoiturageController extends AbstractController{
 
     public function __construct(
-        private readonly EntityManagerInterface   $manager,
-        private readonly CovoiturageRepository    $repository,
-        private readonly SerializerInterface      $serializer,
-        private readonly CovoiturageService       $covoiturageService, // Injection du service
-
+        private readonly EntityManagerInterface  $manager,
+        private readonly CovoiturageRepository   $repository,
+        private readonly SerializerInterface     $serializer,
+        private readonly CovoiturageService      $covoiturageService,
+        private readonly CovoiturageMongoService $covoiturageMongoService,
     )
     {
     }
 
+    /**
+     * @throws ORMException
+     */
     #[Route('/add', name: 'add', methods: ['POST'])]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
@@ -79,9 +84,48 @@ final class CovoiturageController extends AbstractController{
         $this->manager->persist($covoiturage);
         $this->manager->flush();
 
+        // Forcer le rechargement de l'entité User pour éviter les problèmes de synchronisation
+        $this->manager->refresh($user);
 
-        //Il faut maintenant l'ajouter dns mongoDB
+        // Vérification des préférences après rechargement
+        $preferences = $user->getPreferences()->toArray();
+        if (empty($preferences)) {
+            return new JsonResponse(['error' => 'Aucune préférence trouvée pour cet utilisateur.'], Response::HTTP_BAD_REQUEST);
+        }
 
+        $user->getPreferences()->toArray();
+
+        // Sérialiser les préférences de l'utilisateur pour MongoDB
+        $preferencesArray = $this->serializer->normalize($user->getPreferences(), null, ['groups' => 'user_details']);
+
+        // Ajouter les préférences sérialisées dans MongoDB
+        $this->covoiturageMongoService->add([
+            'id_covoiturage' => $covoiturage->getId(),
+            'status' => $covoiturage->getStatus()?->getLibelle(),
+            'startingAddress' => $covoiturage->getStartingAddress(),
+            'arrivalAddress' => $covoiturage->getArrivalAddress(),
+            'startingAt' => $covoiturage->getStartingAt(),
+            'tripDuration' => $covoiturage->getTripDuration(),
+            'nbCredit' => $covoiturage->getNbCredit(),
+            'nbPlaceRemaining' => $covoiturage->getNbPlaceRemaining(),
+            // Données utilisateur
+            'user' => [
+                'id' => $user->getId(),
+                'pseudo' => $user->getPseudo(),
+                'photo' => $user->getPhoto(),
+                'preferences' => $preferencesArray,
+                'grade' => $user->getGrade(),
+            ],
+            // Données véhicule
+            'vehicle' => [
+                'brand' => $vehicle->getBrand(),
+                'model' => $vehicle->getModel(),
+                'color' => $vehicle->getColor(),
+                'energy' => $vehicle->getEnergy()?->getLibelle(),
+                'isEco' => $vehicle->getEnergy()?->isEco(),
+            ],
+            'createdAt' => $covoiturage->getCreatedAt(),
+        ]);
 
 
         return new JsonResponse(
@@ -238,6 +282,31 @@ final class CovoiturageController extends AbstractController{
                     return new JsonResponse(
                         [
                             'error' => 'Le covoiturage ne peut pas être démarré.'
+                        ],
+                        Response::HTTP_FORBIDDEN
+                    );
+                }
+
+                $statusId = $covoiturageStatusMap[$possibleActions[$dataRequest['action']]["become"]];
+                $status = $this->manager->getRepository(CovoiturageStatus::class)->find($statusId);
+
+                if (!$status) {
+                    return new JsonResponse([
+                        'error' => 'Le statut spécifié est introuvable.'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                $covoiturage->setStatus($status);
+            }
+
+            //demande de fin du covoiturage arrivée
+            elseif ($dataRequest['action'] === 'stop') {
+                //Vérification si c'est possible selon l'état initial
+                if (!in_array($covoiturage->getStatus()?->getCode(), $possibleActions['stop']["initial"]))
+                {
+                    return new JsonResponse(
+                        [
+                            'error' => 'Le covoiturage ne peut pas être arrêté.'
                         ],
                         Response::HTTP_FORBIDDEN
                     );
