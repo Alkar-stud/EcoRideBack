@@ -10,6 +10,7 @@ use App\Repository\CovoiturageRepository;
 use App\Service\CovoiturageMongoService;
 use App\Service\CovoiturageService;
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Exception\ORMException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -50,19 +51,20 @@ final class CovoiturageController extends AbstractController{
         if (!$vehicleId) {
             return new JsonResponse(['error' => 'L\'ID du véhicule est requis.'], Response::HTTP_BAD_REQUEST);
         }
-
         // Récupération du véhicule depuis la base de données
         $vehicle = $this->manager->getRepository(Vehicle::class)->find($vehicleId);
-
+        // Ajout d'un contrôle pour éviter la création d'un nouvel objet Vehicle
+        if (!$vehicle) {
+            return new JsonResponse(['error' => 'Le véhicule spécifié est introuvable.'], Response::HTTP_BAD_REQUEST);
+        }
         // Vérification si le véhicule existe et appartient au CurrentUser
-        if (!$vehicle || $vehicle->getOwner() !== $user) {
+        if ($vehicle->getOwner() !== $user) {
             return new JsonResponse(['error' => 'Le véhicule est introuvable ou n\'appartient pas à l\'utilisateur actuel.'], Response::HTTP_FORBIDDEN);
         }
 
         // Recherche de l'entité EcoRide avec le libelle "DEFAULT_COVOITURAGE_STATUS"
         $defaultCovoiturageStatusId = intval($this->covoiturageService->getDefaultStatus()) ?? 1;
-
-        // Récupération de l'objet CovoiturageStatus correspondant
+        // Récupération du texte du statut CovoiturageStatus correspondant
         $defaultCovoiturageStatus = $this->manager->getRepository(CovoiturageStatus::class)->find($defaultCovoiturageStatusId);
 
         // Attribution du statut par défaut au covoiturage
@@ -252,7 +254,7 @@ final class CovoiturageController extends AbstractController{
             //Demande de modification du covoiturage
             if ($dataRequest["action"] === 'update')
             {
-                return $this->handleUpdateAction($covoiturage, $dataRequest, $defaultCovoiturageStatusId, $defaultCovoiturageStatusLibelle);
+                return $this->handleUpdateAction($covoiturage, $user, $dataRequest, $defaultCovoiturageStatusId, $defaultCovoiturageStatusLibelle);
             }
 
             //demande de démarrage du covoiturage
@@ -276,8 +278,18 @@ final class CovoiturageController extends AbstractController{
                         'error' => 'Le statut spécifié est introuvable.'
                     ], Response::HTTP_BAD_REQUEST);
                 }
-
+                // Supprimer le covoiturage de MongoDB car une fois démarré les visiteurs ne doivent plus le trouver
+                $success = $this->covoiturageMongoService->delete($covoiturage->getId());
                 $covoiturage->setStatus($status);
+                $covoiturage->setUpdatedAt(new DateTimeImmutable());
+                $this->manager->flush();
+
+                return new JsonResponse(
+                    [
+                        'message' => 'Le covoiturage est démarré.'
+                    ],
+                    Response::HTTP_OK
+                );
             }
 
             //demande de fin du covoiturage arrivée
@@ -314,7 +326,7 @@ final class CovoiturageController extends AbstractController{
             $covoiturage->setUpdatedAt(new DateTimeImmutable());
 
             $this->manager->flush();
-
+            
             return new JsonResponse(
                 [
                     'id' => $covoiturage->getId(),
@@ -337,16 +349,23 @@ final class CovoiturageController extends AbstractController{
 
     }
 
-    private function handleUpdateAction(Covoiturage $covoiturage, array $dataRequest, int $defaultCovoiturageStatusId, string $defaultCovoiturageStatusLibelle): JsonResponse
+    //Pour gérer l'action "update"
+
+    /**
+     * @throws Exception
+     */
+    private function handleUpdateAction(Covoiturage $covoiturage, User $user, array $dataRequest, int $defaultCovoiturageStatusId, string $defaultCovoiturageStatusLibelle): JsonResponse
     {
+
+        $returnMessage = "";
         // Vérification si le covoiturage est à l'état initial
         if ($covoiturage->getStatus()?->getId() !== $defaultCovoiturageStatusId) {
-            return new JsonResponse(
-                [
-                    'error' => 'Seuls les covoiturages à l\'état `' . $defaultCovoiturageStatusLibelle . '` peuvent être modifiés.'
-                ],
-                Response::HTTP_FORBIDDEN
-            );
+            $returnMessage = [
+                "type_message" => 'error',
+                "message" => "'error' => 'Seuls les covoiturages à l\'état `' . $defaultCovoiturageStatusLibelle . '` peuvent être modifiés.'",
+                "httpStatus" => Response::HTTP_FORBIDDEN
+            ];
+            goto retour;
         }
 
         // Vérification si des passagers sont enregistrés dans la table covoiturage_user
@@ -357,34 +376,99 @@ final class CovoiturageController extends AbstractController{
             ->setParameter('covoiturageId', $covoiturage->getId())
             ->executeQuery()
             ->fetchOne();
-
         if ($passengerCount > 0 && isset($dataRequest['nbPlaceRemaining']) === false) {
-            return new JsonResponse([
-                'error' => 'Le covoiturage ne peut pas être modifié car des passagers sont déjà enregistrés.'
-            ], Response::HTTP_FORBIDDEN);
+            $returnMessage = [
+                "message" => "'error' => 'Le covoiturage ne peut pas être modifié car des passagers sont déjà enregistrés.'",
+                "httpStatus" => Response::HTTP_FORBIDDEN
+            ];
+            goto retour;
         }
 
         // Empêcher la modification de certains champs
         $restrictedFields = ['status', 'createdAt', 'updatedAt', 'owner', 'isClosed'];
         foreach ($restrictedFields as $field) {
             if (isset($dataRequest[$field])) {
-                return new JsonResponse([
-                    'error' => 'Certains champs ne peuvent pas être modifiés.'
-                ], Response::HTTP_FORBIDDEN);
+                $returnMessage = [
+                    "type_message" => 'error',
+                    "message" => "'error' => 'Certains champs ne peuvent pas être modifiés manuellement.",
+                    "httpStatus" => Response::HTTP_FORBIDDEN
+                ];
+                goto retour;
             }
+        }
+        // Vérification si le véhicule appartient à l'utilisateur
+        $vehicleId = $dataRequest['vehicle'] ?? null;
+        $vehicle = $this->manager->getRepository(Vehicle::class)->find($vehicleId);
+        if ($vehicleId) {
+            if (!$vehicle || $vehicle->getOwner() !== $user) {
+                $returnMessage = [
+                    "type_message" => 'error',
+                    "message" => "'error' => 'Le véhicule est introuvable ou n\'appartient pas à l\'utilisateur actuel.'",
+                    "httpStatus" => Response::HTTP_FORBIDDEN
+                ];
+                goto retour;
+            }
+
+            $covoiturage->setVehicle($vehicle);
         }
 
         // Modification des données du covoiturage
+        // Exclure le champ 'vehicle' de la désérialisation
         $this->serializer->deserialize(
             json_encode($dataRequest),
             Covoiturage::class,
             'json',
-            [AbstractNormalizer::OBJECT_TO_POPULATE => $covoiturage]
+            [
+                AbstractNormalizer::OBJECT_TO_POPULATE => $covoiturage,
+                AbstractNormalizer::IGNORED_ATTRIBUTES => ['vehicle']
+            ]
         );
+        
+        $covoiturage->setUpdatedAt(new DateTimeImmutable());
 
-        return new JsonResponse([
-            'message' => 'Covoiturage mis à jour avec succès.'
-        ], Response::HTTP_OK);
+        $this->manager->flush();
+
+        // Récupérer les préférences existantes de l'utilisateur depuis MongoDB
+        $existingData = $this->covoiturageMongoService->findById($covoiturage->getId());
+        $existingPreferences = $existingData['user']['preferences'] ?? [];
+
+        // Mise à jour des données dans MongoDB en conservant les préférences existantes
+        $this->covoiturageMongoService->update($covoiturage->getId(), [
+            'id_covoiturage' => $covoiturage->getId(),
+            'status' => $covoiturage->getStatus()?->getLibelle(),
+            'startingAddress' => $covoiturage->getStartingAddress(),
+            'arrivalAddress' => $covoiturage->getArrivalAddress(),
+            'startingAt' => $covoiturage->getStartingAt(),
+            'tripDuration' => $covoiturage->getTripDuration(),
+            'nbCredit' => $covoiturage->getNbCredit(),
+            'nbPlaceRemaining' => $covoiturage->getNbPlaceRemaining(),
+            'user' => [
+                'id' => $user->getId(),
+                'pseudo' => $user->getPseudo(),
+                'photo' => $user->getPhoto(),
+                'preferences' => $existingPreferences, // Conserver les préférences existantes
+                'grade' => $user->getGrade(),
+            ],
+            'vehicle' => [
+                'brand' => $covoiturage->getVehicle()?->getBrand(),
+                'model' => $covoiturage->getVehicle()?->getModel(),
+                'color' => $covoiturage->getVehicle()?->getColor(),
+                'energy' => $covoiturage->getVehicle()?->getEnergy()?->getLibelle(),
+                'isEco' => $covoiturage->getVehicle()?->getEnergy()?->isEco(),
+            ],
+            'createdAt' => $covoiturage->getCreatedAt(),
+            'updatedAt' => $covoiturage->getUpdatedAt(),
+        ]);
+
+        $returnMessage = [
+            "type_message" => 'message',
+            "message" => 'Covoiturage mis à jour avec succès.',
+            "httpStatus" => Response::HTTP_OK
+        ];
+        
+
+        retour:
+        return new JsonResponse([$returnMessage['type_message'] => $returnMessage['message']], $returnMessage['httpStatus']);
     }
 
     private function validateEditRequest(array $dataRequest, array $possibleActions): ?JsonResponse
@@ -394,7 +478,7 @@ final class CovoiturageController extends AbstractController{
                 [
                     'error' => 'L\'action demandée n\'est pas réalisable'
                 ],
-                Response::HTTP_FORBIDDEN
+                Response::HTTP_BAD_REQUEST
             );
         }
 
@@ -429,10 +513,33 @@ final class CovoiturageController extends AbstractController{
         $covoiturage->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
+        
+        // Supprimer le covoiturage de MongoDB car une fois annulé les visiteurs ne doivent plus le trouver
+        $this->covoiturageMongoService->delete($covoiturage->getId());
 
         return new JsonResponse([
             'message' => 'Le covoiturage a été annulé avec succès.'
         ], Response::HTTP_OK);
+    }
+
+    #[Route('/show_unique/{id}', name: 'show_unique', methods: ['GET'])]
+    public function ShowUnique(int $id): JsonResponse
+    {
+        // Récupération des données depuis MongoDB en fonction de l'id_covoiturage
+        $covoiturageData = $this->covoiturageMongoService->findById($id);
+
+        // Vérification si les données existent
+        if (!$covoiturageData) {
+            return new JsonResponse(['error' => 'Covoiturage introuvable dans MongoDB.'], Response::HTTP_NOT_FOUND);
+        }
+
+        // Extraction des informations nécessaires
+        $response = [
+            'startingAt' => $covoiturageData['startingAt'] ?? null,
+            'arrivalAddress' => $covoiturageData['arrivalAddress'] ?? null,
+        ];
+
+        return new JsonResponse($response, Response::HTTP_OK);
     }
 
 }
