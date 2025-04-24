@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Repository\UserRepository;
 use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Random\RandomException;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
@@ -82,11 +84,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?DateTimeImmutable $updatedAt = null;
 
     /**
+     * @var Collection<int, Vehicle>
+     */
+    #[ORM\OneToMany(targetEntity: Vehicle::class, mappedBy: 'owner', orphanRemoval: true)]
+    private Collection $vehicles;
+
+    /**
      * @throws RandomException
      */
     public function __construct()
     {
         $this->apiToken = bin2hex(random_bytes(32));
+        $this->vehicles = new ArrayCollection();
 
     }
 
@@ -295,6 +304,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Vehicle>
+     */
+    public function getVehicles(): Collection
+    {
+        return $this->vehicles;
+    }
+
+    public function addVehicle(Vehicle $vehicle): static
+    {
+        if (!$this->vehicles->contains($vehicle)) {
+            $this->vehicles->add($vehicle);
+            $vehicle->setOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeVehicle(Vehicle $vehicle): static
+    {
+        if ($this->vehicles->removeElement($vehicle)) {
+            // set the owning side to null (unless already changed)
+            if ($vehicle->getOwner() === $this) {
+                $vehicle->setOwner(null);
+            }
+        }
 
         return $this;
     }
