@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\EcoRide;
+use App\Entity\Preferences;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -60,6 +61,27 @@ final class SecurityController extends AbstractController
         $user->setRoles([]);
 
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
+
+        //On ajoute 2 préférences 'smokingAllowed' et 'petsAllowed' avec en description 'no'
+        $smokingPreference = new Preferences();
+        $smokingPreference->setLibelle('smokingAllowed');
+        $smokingPreference->setDescription('no');
+        $smokingPreference->setUser($user);
+        $smokingPreference->setCreatedAt(new DateTimeImmutable());
+
+        $petsPreference = new Preferences();
+        $petsPreference->setLibelle('petsAllowed');
+        $petsPreference->setDescription('no');
+        $petsPreference->setUser($user);
+        $petsPreference->setCreatedAt(new DateTimeImmutable());
+
+        $this->manager->persist($smokingPreference);
+        $this->manager->persist($petsPreference);
+
+        $user->addPreference($smokingPreference);
+        $user->addPreference($petsPreference);
+
+
         $user->setCreatedAt(new DateTimeImmutable());
 
         $this->manager->persist($user);
