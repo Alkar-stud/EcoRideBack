@@ -1,0 +1,45 @@
+<?php
+// src/Service/MailService.php
+namespace App\Service;
+
+use App\Repository\MailRepository;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Email;
+
+readonly class MailService
+{
+
+    public function __construct(
+        private MailerInterface $mailer,
+        private MailRepository $mailRepository
+    )
+    {
+    }
+
+    /**
+     * @throws TransportExceptionInterface
+     */
+    public function sendEmail(string $to, string $mailType): void
+    {
+
+        // Récupération de l'entité Mail en fonction du typeMail
+        $mail = $this->mailRepository->findOneBy(['typeMail' => $mailType]);
+
+        if (!$mail) {
+            throw new \InvalidArgumentException("Aucun mail trouvé pour le type : $mailType");
+        }
+
+        $subject = $mail->getSubject();
+        $content = $mail->getContent();
+
+        $email = (new Email())
+            ->from('hello@demomailtrap.co')
+            ->to($to)
+            ->subject($subject)
+            ->text($content)
+            ->html($content);
+
+        $this->mailer->send($email);
+    }
+}
