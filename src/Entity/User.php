@@ -87,7 +87,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Vehicle>
      */
     #[ORM\OneToMany(targetEntity: Vehicle::class, mappedBy: 'owner', orphanRemoval: true)]
+    #[Groups(['user_read'])]
     private Collection $vehicles;
+
+    /**
+     * @var Collection<int, Preferences>
+     */
+    #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
+    #[Groups(['user_read'])]
+    private Collection $preferences;
 
     /**
      * @throws RandomException
@@ -96,6 +104,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->apiToken = bin2hex(random_bytes(32));
         $this->vehicles = new ArrayCollection();
+        $this->preferences = new ArrayCollection();
 
     }
 
@@ -332,6 +341,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // set the owning side to null (unless already changed)
             if ($vehicle->getOwner() === $this) {
                 $vehicle->setOwner(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Preferences>
+     */
+    public function getPreferences(): Collection
+    {
+        return $this->preferences;
+    }
+
+    public function addPreference(Preferences $preference): static
+    {
+        if (!$this->preferences->contains($preference)) {
+            $this->preferences->add($preference);
+            $preference->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removePreference(Preferences $preference): static
+    {
+        if ($this->preferences->removeElement($preference)) {
+            // set the owning side to null (unless already changed)
+            if ($preference->getUser() === $this) {
+                $preference->setUser(null);
             }
         }
 

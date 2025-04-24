@@ -2,27 +2,32 @@
 
 namespace App\Entity;
 
-use App\Repository\EnergyRepository;
+use App\Repository\PreferencesRepository;
 use DateTimeImmutable;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 
-#[ORM\Entity(repositoryClass: EnergyRepository::class)]
-class Energy
+#[ORM\Entity(repositoryClass: PreferencesRepository::class)]
+class Preferences
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['vehicle_read', 'user_read'])]
+    #[Groups(['user_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read', 'user_read'])]
+    #[Groups(['user_read'])]
     private ?string $libelle = null;
 
-    #[ORM\Column(nullable: true)]
-    #[Groups(['vehicle_read', 'user_read'])]
-    private ?bool $isEco = null;
+    #[ORM\Column(type: Types::TEXT)]
+    #[Groups(['user_read'])]
+    private ?string $description = null;
+
+    #[ORM\ManyToOne(inversedBy: 'preferences')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?User $user = null;
 
     #[ORM\Column]
     private ?DateTimeImmutable $createdAt = null;
@@ -47,14 +52,26 @@ class Energy
         return $this;
     }
 
-    public function isEco(): ?bool
+    public function getDescription(): ?string
     {
-        return $this->isEco ?? false;
+        return $this->description;
     }
 
-    public function setIsEco(?bool $isEco): static
+    public function setDescription(string $description): static
     {
-        $this->isEco = $isEco;
+        $this->description = $description;
+
+        return $this;
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): static
+    {
+        $this->user = $user;
 
         return $this;
     }
