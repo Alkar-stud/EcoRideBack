@@ -12,7 +12,7 @@ class CustomAccessDeniedHandler implements AccessDeniedHandlerInterface
     public function handle(Request $request, AccessDeniedException $accessDeniedException): JsonResponse
     {
         $data = [
-            'message' => 'Vous n\'avez pas les permissions nécessaires pour accéder à cette ressource.'
+            'message' => 'Accès non autorisé.'
         ];
 
         return new JsonResponse($data, 403);

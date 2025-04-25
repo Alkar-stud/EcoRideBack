@@ -169,7 +169,7 @@ final class VehicleController extends AbstractController
             return new JsonResponse(['message' => 'Le véhicule a été supprimé avec succès.'], Response::HTTP_OK);
         }
 
-        return new JsonResponse(['error' => true, 'message' => 'Ce véhicule n\'existe pas ou ne vous appartient pas.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
     }
 
     private function checkVehicleRequirements(Vehicle $vehicle, Request $request): array

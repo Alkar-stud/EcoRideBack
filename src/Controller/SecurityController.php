@@ -136,7 +136,7 @@ final class SecurityController extends AbstractController
     public function edit(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         if (null === $user) {
-            return new JsonResponse(['error' => true, 'message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+            return new JsonResponse(null, Response::HTTP_UNAUTHORIZED);
         }
 
         $originalEmail = $user->getEmail();

@@ -12,7 +12,7 @@ class CustomAuthenticationEntryPoint implements AuthenticationEntryPointInterfac
     public function start(Request $request, ?AuthenticationException $authException = null): JsonResponse
     {
         $data = [
-            'message' => 'Vous devez être authentifié pour accéder à cette ressource.'
+            'message' => 'Accès non autorisé.'
         ];
 
         return new JsonResponse($data, 401);
