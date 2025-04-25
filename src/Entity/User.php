@@ -98,6 +98,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private Collection $preferences;
 
     /**
+     * @var Collection<int, Trip>
+     */
+    #[ORM\OneToMany(targetEntity: Trip::class, mappedBy: 'owner')]
+    private Collection $trips;
+
+    /**
+     * @var Collection<int, Trip>
+     */
+    #[ORM\ManyToMany(targetEntity: Trip::class, mappedBy: 'User')]
+    private Collection $tripsUsers;
+
+    /**
      * @throws RandomException
      */
     public function __construct()
@@ -105,6 +117,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->apiToken = bin2hex(random_bytes(32));
         $this->vehicles = new ArrayCollection();
         $this->preferences = new ArrayCollection();
+        $this->trips = new ArrayCollection();
+        $this->tripsUsers = new ArrayCollection();
 
     }
 
@@ -372,6 +386,63 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             if ($preference->getUser() === $this) {
                 $preference->setUser(null);
             }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Trip>
+     */
+    public function getTrips(): Collection
+    {
+        return $this->trips;
+    }
+
+    public function addTrip(Trip $trip): static
+    {
+        if (!$this->trips->contains($trip)) {
+            $this->trips->add($trip);
+            $trip->setOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTrip(Trip $trip): static
+    {
+        if ($this->trips->removeElement($trip)) {
+            // set the owning side to null (unless already changed)
+            if ($trip->getOwner() === $this) {
+                $trip->setOwner(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Trip>
+     */
+    public function getTripsUsers(): Collection
+    {
+        return $this->tripsUsers;
+    }
+
+    public function addTripsUser(Trip $tripsUser): static
+    {
+        if (!$this->tripsUsers->contains($tripsUser)) {
+            $this->tripsUsers->add($tripsUser);
+            $tripsUser->addUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTripsUser(Trip $tripsUser): static
+    {
+        if ($this->tripsUsers->removeElement($tripsUser)) {
+            $tripsUser->removeUser($this);
         }
 
         return $this;
