@@ -9,14 +9,14 @@ use MongoDB\Collection;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
-class CovoiturageMongoService
+class TripMongoService
 {
     private Collection $collection;
 
     public function __construct(string $mongoUri, string $databaseName)
     {
         $client = new Client($mongoUri);
-        $this->collection = $client->selectCollection($databaseName, 'covoiturage');
+        $this->collection = $client->selectCollection($databaseName, 'trips');
     }
 
     private function convertDatesToIsoFormat(array $data): array
@@ -45,7 +45,7 @@ class CovoiturageMongoService
             // Conversion des dates en format ISO 8601 avant mise à jour
             $data = $this->convertDatesToIsoFormat($data);
             $result = $this->collection->updateOne(
-                ['id_covoiturage' => $id], // Correction de la clé pour correspondre à celle utilisée dans MongoDB
+                ['id_covoiturage' => $id],
                 ['$set' => $data]
             );
 

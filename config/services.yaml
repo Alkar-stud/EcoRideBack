@@ -23,7 +23,7 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    App\Service\CovoiturageMongoService:
+    App\Service\TripMongoService:
         arguments:
             $mongoUri: '%env(MONGODB_URL)%'
             $databaseName: '%env(MONGODB_DB)%'

@@ -7,6 +7,7 @@ use DateTimeImmutable;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: TripRepository::class)]
 class Trip
@@ -14,42 +15,53 @@ class Trip
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['trip_detail'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['trip_detail'])]
     private ?string $startingAddress = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['trip_detail'])]
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
+    #[Groups(['trip_detail'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
+    #[Groups(['trip_detail'])]
     private ?int $duration = null;
 
     #[ORM\Column]
+    #[Groups(['trip_detail'])]
     private ?int $nbCredit = null;
 
     #[ORM\Column]
+    #[Groups(['trip_detail'])]
     private ?int $nbPlaceRemaining = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['trip_detail'])]
     private ?TripStatus $status = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['trip_detail'])]
     private ?User $owner = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['trip_detail'])]
     private ?Vehicle $vehicle = null;
 
     /**
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'tripsUsers')]
+    #[Groups(['trip_detail'])]
     private Collection $User;
 
     #[ORM\Column]
@@ -222,5 +234,18 @@ class Trip
         $this->UpdatedAt = $UpdatedAt;
 
         return $this;
+    }
+
+    public function __call(string $name, array $arguments)
+    {
+        if (str_starts_with($name, 'set')) {
+            $property = lcfirst(substr($name, 3));
+            if (property_exists($this, $property)) {
+                $this->$property = $arguments[0];
+                return $this;
+            }
+        }
+
+        throw new \BadMethodCallException("La méthode {$name} n'existe pas.");
     }
 }
