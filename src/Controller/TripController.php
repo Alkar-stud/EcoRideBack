@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Entity\Mail;
 use App\Entity\Trip;
 use App\Entity\User;
 use App\Repository\TripRepository;
@@ -11,15 +10,17 @@ use App\Service\TripService;
 use App\Service\MailService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Exception;
+use InvalidArgumentException;
+use ReflectionMethod;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Mime\Email;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\Mailer\MailerInterface;
 
 #[Route('/api/trip', name: 'app_api_trip_')]
 final class TripController extends AbstractController
@@ -79,7 +80,7 @@ final class TripController extends AbstractController
             'nbPlaceRemaining' => $trip->getNbPlaceRemaining(),
             'nbParticipant' => 0,
             // Données utilisateur
-            'user' => [
+            'owner' => [
                 'id' => $user->getId(),
                 'pseudo' => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
@@ -110,7 +111,7 @@ final class TripController extends AbstractController
         );
     }
 
-    #[Route('/list/{state}', name: 'showAll', methods: 'GET')]
+    #[Route('/list/{state}', name: 'showAllOwner', methods: 'GET')]
     public function showAllOwner(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
         $possibleCodeStatus = $this->tripService->getPossibleStatus();
@@ -123,6 +124,7 @@ final class TripController extends AbstractController
         {
             return new JsonResponse(['error' => true, 'message' => 'Cet état n\'existe pas.'], Response::HTTP_NOT_FOUND);
         }
+
 
         //Si l'état demandé est 'all' pour tout afficher
         if ($state === 'all')
@@ -140,19 +142,9 @@ final class TripController extends AbstractController
             /**
              * Récupère tous les voyages depuis MongoDB pour l'utilisateur connecté.
              */
-            if (!$user) {
-                return new JsonResponse(['error' => 'Authentication required.'], Response::HTTP_UNAUTHORIZED);
-            }
-
-            $userId = $user->getId();
-            if ($userId === null) {
-                // Cas peu probable si l'utilisateur est authentifié, mais bonne pratique
-                return new JsonResponse(['error' => 'User ID not found.'], Response::HTTP_BAD_REQUEST);
-            }
-
             try {
                 // Appel de la nouvelle méthode du service MongoDB
-                $tripsData = $this->tripMongoService->findByUserId($userId, $page, $limit, );
+                $tripsData = $this->tripMongoService->findByUserId($user->getId(), $page, $limit);
 
                 if (empty($tripsData)) {
                     return new JsonResponse(['message' => 'No trips found in MongoDB for this user.'], Response::HTTP_NOT_FOUND);
@@ -160,8 +152,8 @@ final class TripController extends AbstractController
 
                 return new JsonResponse($tripsData, Response::HTTP_OK);
 
-            } catch (\Exception $e) {
-                return new JsonResponse(['error' => 'An error occurred while fetching trips from MongoDB.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            } catch (Exception $e) {
+                return new JsonResponse(['error' => 'An error occurred while fetching trips from MongoDB: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
 
         }
@@ -204,15 +196,18 @@ final class TripController extends AbstractController
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     */
     #[Route('/edit/{id}/update', name: 'edit', methods: ['PUT'])]
-    public function edit(#[CurrentUser] ?User $user, Request $request, int $id, MailerInterface $mailer): JsonResponse
+    public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
     {
         $trip = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
-        $originalVehicleId = $trip->getVehicle()->getId();
         if (!$trip) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
+        $originalVehicleId = $trip->getVehicle()->getId();
         //Seul l'update des datas sera traité ici, possible en fonction du statut du covoiturage, donc le statut sera modifié ailleurs. Owner n'est pas modifiable non plus
         $possibleActions = $this->tripService->getPossibleActions();
         //Vérification si l'action 'update' existe, et si elle est possible en fonction du statut du covoiturage
@@ -292,7 +287,7 @@ final class TripController extends AbstractController
             if (in_array($key, $champsModifiables)) {
                 $setter = 'set' . ucfirst($key);
                 if (method_exists($trip, $setter)) {
-                    $reflectionMethod = new \ReflectionMethod($trip, $setter);
+                    $reflectionMethod = new ReflectionMethod($trip, $setter);
                     $parameters = $reflectionMethod->getParameters();
 
                     if (!empty($parameters)) {
@@ -302,7 +297,7 @@ final class TripController extends AbstractController
                             if (class_exists($className)) {
                                 $value = $this->manager->getRepository($className)->find($value);
                                 if (!$value) {
-                                    throw new \InvalidArgumentException("L'entité {$className} avec l'ID spécifié est introuvable.");
+                                    throw new InvalidArgumentException("L'entité {" . $className . "} avec l'ID spécifié est introuvable.");
                                 }
                             }
                         }

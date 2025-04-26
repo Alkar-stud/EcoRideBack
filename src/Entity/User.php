@@ -75,6 +75,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private ?bool $isActive = true;
 
+    #[ORM\Column(nullable: true)]
+    #[Groups(['user_read', 'user_login'])]
+    private ?bool $firstLogin = true;
+
     #[ORM\Column]
     #[Groups(['user_read'])]
     private ?DateTimeImmutable $createdAt = null;
@@ -109,8 +113,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\ManyToMany(targetEntity: Trip::class, mappedBy: 'User')]
     private Collection $tripsUsers;
 
-    #[ORM\Column(nullable: true)]
-    private ?bool $firstLogin = null;
 
     /**
      * @throws RandomException
