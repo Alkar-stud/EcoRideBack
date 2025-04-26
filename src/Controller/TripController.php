@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Repository\TripRepository;
 use App\Service\TripMongoService;
 use App\Service\TripService;
+use App\Service\MailService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,12 +24,14 @@ use Symfony\Component\Mailer\MailerInterface;
 #[Route('/api/trip', name: 'app_api_trip_')]
 final class TripController extends AbstractController
 {
+
     public function __construct(
         private readonly EntityManagerInterface  $manager,
         private readonly TripRepository          $repository,
         private readonly SerializerInterface     $serializer,
         private readonly TripService             $tripService,
         private readonly TripMongoService        $tripMongoService,
+        private readonly MailService             $mailService,
     )
     {
     }
@@ -65,20 +68,9 @@ final class TripController extends AbstractController
         $this->manager->persist($trip);
         $this->manager->flush();
 
-        // Vérification des préférences après rechargement
-        $preferences = $user->getPreferences()->toArray();
-        if (empty($preferences)) {
-            return new JsonResponse(['error' => 'Aucune préférence trouvée pour cet utilisateur.'], Response::HTTP_BAD_REQUEST);
-        }
-
-        $user->getPreferences()->toArray();
-
-        // Sérialiser les préférences de l'utilisateur pour MongoDB
-        $preferencesArray = $this->serializer->normalize($user->getPreferences(), null, ['groups' => 'preferences_user']);
         // Ajouter les préférences sérialisées dans MongoDB
         $this->tripMongoService->add([
             'id_covoiturage' => $trip->getId(),
-            'status' => $trip->getStatus()?->getLibelle(),
             'startingAddress' => $trip->getStartingAddress(),
             'arrivalAddress' => $trip->getArrivalAddress(),
             'startingAt' => $trip->getStartingAt(),
@@ -91,18 +83,13 @@ final class TripController extends AbstractController
                 'id' => $user->getId(),
                 'pseudo' => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
-                'preferences' => $preferencesArray,
                 'grade' => $user->getGrade(),
             ],
             // Données véhicule
             'vehicle' => [
-                'brand' => $trip->getVehicle()->getBrand(),
-                'model' => $trip->getVehicle()->getModel(),
-                'color' => $trip->getVehicle()->getColor(),
                 'energy' => $trip->getVehicle()->getEnergy()?->getLibelle(),
                 'isEco' => $trip->getVehicle()->getEnergy()?->isEco(),
             ],
-            'createdAt' => $trip->getCreatedAt(),
         ]);
 
         return new JsonResponse(
@@ -138,16 +125,7 @@ final class TripController extends AbstractController
         }
 
         //Si l'état demandé est 'all' pour tout afficher
-        if ($state !== 'all')
-        {
-            $trips = $this->repository->findBy(
-                ['owner' => $user->getId(), 'status' => $possibleCodeStatus[$state]],
-                ['startingAt' => 'ASC'],
-                $limit,
-                ($page - 1) * $limit
-            );
-        }
-        else
+        if ($state === 'all')
         {
             $trips = $this->repository->findBy(
                 ['owner' => $user->getId()],
@@ -156,7 +134,46 @@ final class TripController extends AbstractController
                 ($page - 1) * $limit
             );
         }
+        //Si c'est 'coming' on va chercher dans mongoDB
+        elseif ($state == 'coming')
+        {
+            /**
+             * Récupère tous les voyages depuis MongoDB pour l'utilisateur connecté.
+             */
+            if (!$user) {
+                return new JsonResponse(['error' => 'Authentication required.'], Response::HTTP_UNAUTHORIZED);
+            }
 
+            $userId = $user->getId();
+            if ($userId === null) {
+                // Cas peu probable si l'utilisateur est authentifié, mais bonne pratique
+                return new JsonResponse(['error' => 'User ID not found.'], Response::HTTP_BAD_REQUEST);
+            }
+
+            try {
+                // Appel de la nouvelle méthode du service MongoDB
+                $tripsData = $this->tripMongoService->findByUserId($userId, $page, $limit, );
+
+                if (empty($tripsData)) {
+                    return new JsonResponse(['message' => 'No trips found in MongoDB for this user.'], Response::HTTP_NOT_FOUND);
+                }
+
+                return new JsonResponse($tripsData, Response::HTTP_OK);
+
+            } catch (\Exception $e) {
+                return new JsonResponse(['error' => 'An error occurred while fetching trips from MongoDB.'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+        }
+        else
+        {
+            $trips = $this->repository->findBy(
+                ['owner' => $user->getId(), 'status' => $possibleCodeStatus[$state]],
+                ['startingAt' => 'ASC'],
+                $limit,
+                ($page - 1) * $limit
+            );
+        }
 
         if ($trips) {
             $responseData = $this->serializer->serialize(
@@ -221,12 +238,10 @@ final class TripController extends AbstractController
 
 
         //Modification impossible si des participants sont inscrits, sauf si on augmente le nombre de places
-
         /* Si participants == 0 → on peut modifier (presque) tout
          * Si participants > 0 →
          *   → Si nbPlaceRemaining >= count($users) => on peut modifier ce champ et vehicle.
          */
-
         $champsModifiables = [
             0=>"vehicle",
             1=>"startingAddress",
@@ -296,44 +311,28 @@ final class TripController extends AbstractController
                 }
             }
         }
-
         //Si on a changé le véhicule, on envoie un mail
         if ($trip->getVehicle()->getId() !== $originalVehicleId)
         {
             //Envoi du mail type changeTripVehicle à tous les participants
-            //récupération des datas du mailtype 'changeTripVehicle'
-            $mail = $this->manager->getRepository(Mail::class)->findOneBy(['typeMail' => 'changeTripVehicle']);
-
-            if (!$mail) {
-                return new JsonResponse(['error' => 'Aucun mail trouvé pour le type "changeTripVehicle".'], Response::HTTP_NOT_FOUND);
-            }
-
-            // Utilisation des données de l'entité Mail
-            foreach ($users as $userForMailing)
-            {
-                $contentMail = $mail->getContent();
-                $contentMail = str_replace('{pseudo}',$userForMailing['pseudo'],$contentMail);
-                $contentMail = str_replace('{brand}',$trip->getVehicle()->getBrand(),$contentMail);
-                $contentMail = str_replace('{model}',$trip->getVehicle()->getModel(),$contentMail);
-                $contentMail = str_replace('{color}',$trip->getVehicle()->getColor(),$contentMail);
-
-                $email = (new Email())
-                    ->from('noreply@ecoride.fr')
-                    ->to($user->getEmail()) // Adresse email du passager
-                    ->subject($mail->getSubject())
-                    ->html($contentMail);
-
-
-                $mailer->send($email);
-
-                $returnMessage = [
-                    "error" => false,
-                    "message" => "Véhicule modifié avec succès",
-                    "httpStatus" => Response::HTTP_OK
+            foreach ($users as $userForMailing) {
+                $strToReplace = [
+                    "pseudo" => $userForMailing['pseudo'],
+                    "brand" => $trip->getVehicle()->getBrand(),
+                    "model" => $trip->getVehicle()->getModel(),
+                    "color" => $trip->getVehicle()->getColor()
                 ];
-                goto retour;
+
+                $this->mailService->sendEmail($user->getEmail(), 'changeTripVehicle', $strToReplace);
+
             }
 
+            $returnMessage = [
+                "error" => false,
+                "message" => "Véhicule modifié avec succès",
+                "httpStatus" => Response::HTTP_OK
+            ];
+            goto retour;
         }
 
         $returnMessage = [
@@ -343,17 +342,13 @@ final class TripController extends AbstractController
         ];
 
         retour:
-
         $this->manager->flush();
 
         //S'il y a des participants, on ajoute le count($users) pour MongoDB
         count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
-        // Sérialiser les préférences de l'utilisateur pour MongoDB
-        $preferencesArray = $this->serializer->normalize($user->getPreferences(), null, ['groups' => 'preferences_user']);
         //Modification dans mongoDB
         $this->tripMongoService->update($trip->getId(), [
             'id_covoiturage' => $trip->getId(),
-            'status' => $trip->getStatus()?->getLibelle(),
             'startingAddress' => $trip->getStartingAddress(),
             'arrivalAddress' => $trip->getArrivalAddress(),
             'startingAt' => $trip->getStartingAt(),
@@ -365,18 +360,12 @@ final class TripController extends AbstractController
                 'id' => $user->getId(),
                 'pseudo' => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
-                'preferences' => $preferencesArray,
                 'grade' => $user->getGrade(),
             ],
             'vehicle' => [
-                'brand' => $trip->getVehicle()?->getBrand(),
-                'model' => $trip->getVehicle()?->getModel(),
-                'color' => $trip->getVehicle()?->getColor(),
                 'energy' => $trip->getVehicle()?->getEnergy()?->getLibelle(),
                 'isEco' => $trip->getVehicle()?->getEnergy()?->isEco(),
             ],
-            'createdAt' => $trip->getCreatedAt(),
-            'updatedAt' => $trip->getUpdatedAt(),
         ]);
 
         return new JsonResponse(['error' => $returnMessage['error'], "message" => $returnMessage['message']], $returnMessage['httpStatus']);

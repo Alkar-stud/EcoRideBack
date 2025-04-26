@@ -84,4 +84,63 @@ class TripMongoService
 
         return $document?->getArrayCopy();
     }
+
+
+
+    /**
+     * Trouve les documents de voyage paginés dans MongoDB pour un utilisateur donné.
+     *
+     * @param int $userId L'ID de l'utilisateur.
+     * @param int $page Le numéro de la page (commence à 1).
+     * @param int $limit Le nombre de documents par page.
+     * @return array Un tableau contenant 'data' (les documents de la page) et 'total' (le nombre total de documents).
+     */
+    public function findByUserId(int $userId, int $page = 1, int $limit = 10): array
+    {
+        try {
+            // Assurer que la page et la limite sont valides
+            $page = max(1, $page);
+            $limit = max(1, $limit); // Limite minimale de 1
+
+            // Calculer le nombre de documents à sauter (offset)
+            $skip = ($page - 1) * $limit;
+
+            // Le filtre cible le champ 'id' imbriqué dans le champ 'user'
+            $filter = ['user.id' => $userId];
+
+            // Options de recherche incluant tri, limite et skip
+            $options = [
+                'sort' => ['startingAt' => 1], // Trier par date de départ ascendante
+                'limit' => $limit,
+                'skip' => $skip,
+            ];
+
+
+            // Exécuter la requête pour obtenir les documents de la page courante
+            $cursor = $this->collection->find($filter, $options);
+            $results = iterator_to_array($cursor); // Convertit les résultats de la page en tableau
+
+            // Compter le nombre total de documents correspondant au filtre (sans pagination)
+            // C'est nécessaire pour que le client puisse calculer le nombre total de pages
+            $totalDocuments = $this->collection->countDocuments($filter);
+
+            return [
+                'data' => $results, // Les documents de la page actuelle
+                'total' => $totalDocuments, // Le nombre total de documents pour cet utilisateur
+                'page' => $page,
+                'limit' => $limit
+            ];
+
+        } catch (MongoDbDriverException $e) {
+            // Gérer l'erreur de recherche
+            error_log("MongoDB findByUserId (paginated) failed for user $userId: " . $e->getMessage());
+            // Retourner une structure vide en cas d'erreur
+            return [
+                'data' => [],
+                'total' => 0,
+                'page' => $page, // Retourner la page demandée même en cas d'erreur peut être utile
+                'limit' => $limit
+            ];
+        }
+    }
 }

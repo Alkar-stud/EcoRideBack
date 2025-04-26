@@ -20,7 +20,7 @@ readonly class MailService
     /**
      * @throws TransportExceptionInterface
      */
-    public function sendEmail(string $to, string $mailType): void
+    public function sendEmail(string $to, string $mailType, $strToReplace = []): void
     {
 
         // Récupération de l'entité Mail en fonction du typeMail
@@ -33,6 +33,12 @@ readonly class MailService
         $subject = $mail->getSubject();
         $content = $mail->getContent();
 
+        foreach ($strToReplace as $key => $value)
+        {
+            $subject = str_replace('{'.$key.'}', $value, $subject);
+            $content = str_replace('{'.$key.'}', $value, $content);
+        }
+
         $email = (new Email())
             ->from('hello@demomailtrap.co')
             ->to($to)
@@ -41,5 +47,6 @@ readonly class MailService
             ->html($content);
 
         $this->mailer->send($email);
+
     }
 }
