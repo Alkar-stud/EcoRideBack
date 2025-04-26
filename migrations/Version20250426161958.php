@@ -23,6 +23,10 @@ final class Version20250426161958 extends AbstractMigration
         $this->addSql(<<<'SQL'
             CREATE TABLE notice_status (id INT AUTO_INCREMENT NOT NULL, libelle VARCHAR(50) NOT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB
         SQL);
+
+        $this->addSql(<<<'SQL'
+            INSERT INTO `notice_status` (`libelle`, `created_at`) VALUES ('Déposé', NOW()), ('En Cours De Validation', NOW()), ('Validé', NOW()), ('Refusé', NOW())
+        SQL);
     }
 
     public function down(Schema $schema): void

@@ -44,7 +44,11 @@ final class TripActionController extends AbstractController
                 // L'utilisateur fait partie des participants
                 return new JsonResponse(['message' => 'Vous êtes déjà inscrit à ce covoiturage.'], Response::HTTP_OK);
             }
-
+            //Vérification que le solde de credit est suffisant
+            if ($user->getCredits() < $trip->getNbCredit()) {
+                return new JsonResponse(['message' => 'Vous \'avez pas assez de credit pour participer à ce covoiturage.'], Response::HTTP_PAYMENT_REQUIRED);
+            }
+            $user->setCredits($user->getCredits() - $trip->getNbCredit());
             $trip->addUser($user);
             $this->manager->flush();
             return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
@@ -66,7 +70,8 @@ final class TripActionController extends AbstractController
                 // L'utilisateur ne fait pas partie des participants
                 return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
             }
-
+            //On recrédite le user
+            $user->setCredits($user->getCredits() + $trip->getNbCredit());
             $trip->removeUser($user);
             $this->manager->flush();
             return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
@@ -138,22 +143,26 @@ final class TripActionController extends AbstractController
             // ou
             //Envoi du mail type passengerValidation à tous les participants en remplaçant les données
             foreach ($users as $userForMailing) {
+                $participant = $this->manager->getRepository(User::class)->find($userForMailing['id']);
                 $strToReplace = [
                     "pseudo" => $userForMailing['pseudo'],
                     "date" => $trip->getStartingAt()->format('d/m/Y'),
                     "arrivalAddress" => $trip->getArrivalAddress(),
                     "tripId" => $trip->getId(),
                 ];
-
+                //on recrédite les participants
+                $participant->setCredits($participant->getCredits() + $trip->getNbCredit());
                 $this->mailService->sendEmail($userForMailing['email'], $mailType[$action], $strToReplace);
             }
 
             //Si cancel, on supprime le document dans MongoDB
             if ($action == 'cancel') { $this->tripMongoService->delete($trip->getId()); }
+
         }
-
-
-
+        //Si finished, on ajoute les crédits au chauffeur : $user->setCredit(count($users) * $trip->getNbCredit() + $user->getCredit()));
+        if ($action == 'finish') {
+            $user->setCredits(count($users) * $trip->getNbCredit() + $user->getCredits());
+        }
 
         $trip->setStatus($status);
         $trip->setUpdatedAt(new DateTimeImmutable());
