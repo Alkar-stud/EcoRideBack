@@ -30,14 +30,59 @@ final class TripActionController extends AbstractController
     {
     }
 
+
+    #[Route('/{tripId}/addUser', name: 'addUser', methods: ['PUT'])]
+    public function addUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
+    {
+        //Récupération du covoiturage
+        $trip = $this->tripRepository->findOneBy(['id' => $tripId]);
+
+        //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+        if ($trip->getStatus() === $this->tripService->getDefaultStatus())
+        {
+            //Si le $user fait partie des participants
+            if ($trip->getUser()->contains($user)) {
+                // L'utilisateur fait partie des participants
+                return new JsonResponse(['message' => 'Vous êtes déjà inscrit à ce covoiturage.'], Response::HTTP_OK);
+            }
+
+            $trip->addUser($user);
+            $this->manager->flush();
+            return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
+        }
+        return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
+    }
+
+    #[Route('/{tripId}/removeUser', name: 'removeUser', methods: ['PUT'])]
+    public function removeUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
+    {
+        //Récupération du covoiturage
+        $trip = $this->tripRepository->findOneBy(['id' => $tripId]);
+
+        //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+        if ($trip->getStatus() === $this->tripService->getDefaultStatus())
+        {
+            //Si le $user fait partie des participants
+            if (!$trip->getUser()->contains($user)) {
+                // L'utilisateur ne fait pas partie des participants
+                return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
+            }
+
+            $trip->removeUser($user);
+            $this->manager->flush();
+            return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
+        }
+        return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
+    }
+
     /**
      * @throws TransportExceptionInterface
      */
-    #[Route('/{id}/{action}', name: 'action', methods: ['PUT'])]
-    public function action(#[CurrentUser] ?User $user, int $id, string $action): JsonResponse
+    #[Route('/{tripId}/{action}', name: 'action', methods: ['PUT'])]
+    public function action(#[CurrentUser] ?User $user, int $tripId, string $action): JsonResponse
     {
         //Est-ce que cette action est possible
-        $isActionPossible = $this->tripService->isActionPossible($action, $id, $user);
+        $isActionPossible = $this->tripService->isActionPossible($action, $tripId, $user);
 
         if ($isActionPossible['error'] != 'ok')
         {
@@ -67,7 +112,7 @@ final class TripActionController extends AbstractController
         }
 
         //Récupération du covoiturage
-        $trip = $this->tripRepository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
+        $trip = $this->tripRepository->findOneBy(['id' => $tripId, 'owner' => $user->getId()]);
         //Récupérer les participants (user) du voyage
         $users = $trip->getUser()->map(function ($tripUser) {
             return [
@@ -106,7 +151,6 @@ final class TripActionController extends AbstractController
 
             //Si cancel, on supprime le document dans MongoDB
             if ($action == 'cancel') { $this->tripMongoService->delete($trip->getId()); }
-
         }
 
 
