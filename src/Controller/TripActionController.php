@@ -110,6 +110,8 @@ final class TripActionController extends AbstractController
         }
 
 
+
+
         $trip->setStatus($status);
         $trip->setUpdatedAt(new DateTimeImmutable());
         $this->manager->flush();

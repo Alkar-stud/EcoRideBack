@@ -109,6 +109,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\ManyToMany(targetEntity: Trip::class, mappedBy: 'User')]
     private Collection $tripsUsers;
 
+    #[ORM\Column(nullable: true)]
+    private ?bool $firstLogin = null;
+
     /**
      * @throws RandomException
      */
@@ -444,6 +447,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         if ($this->tripsUsers->removeElement($tripsUser)) {
             $tripsUser->removeUser($this);
         }
+
+        return $this;
+    }
+
+    public function isFirstLogin(): ?bool
+    {
+        return $this->firstLogin;
+    }
+
+    public function setFirstLogin(?bool $firstLogin): static
+    {
+        $this->firstLogin = $firstLogin;
 
         return $this;
     }
