@@ -2,8 +2,6 @@
 
 namespace App\Controller;
 
-use App\Entity\Mail;
-use App\Entity\Trip;
 use App\Entity\TripStatus;
 use App\Entity\User;
 use App\Repository\TripRepository;
@@ -14,19 +12,16 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
-use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/trip', name: 'app_api_trip_')]
 final class TripActionController extends AbstractController
 {
     public function __construct(
         private readonly EntityManagerInterface  $manager,
-        private readonly TripRepository          $repository,
-        private readonly SerializerInterface     $serializer,
         private readonly MailService             $mailService,
         private readonly TripService             $tripService,
         private readonly TripRepository          $tripRepository,
@@ -35,6 +30,9 @@ final class TripActionController extends AbstractController
     {
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     */
     #[Route('/{id}/{action}', name: 'action', methods: ['PUT'])]
     public function action(#[CurrentUser] ?User $user, int $id, string $action): JsonResponse
     {
@@ -58,29 +56,42 @@ final class TripActionController extends AbstractController
             $covoiturageStatusMap[$status['code']] = $status['id'];
         }
 
+        //Récupération du tableau des actions possibles
         $possibleActions = $this->tripService->getPossibleActions();
+        //Récupération de l'ID du statut suivant.
         $statusId = $covoiturageStatusMap[$possibleActions[$action]["become"]];
+        //Récupération de l'entité du statut suivant
         $status = $this->manager->getRepository(TripStatus::class)->find($statusId);
         if (!$status) {
             return new JsonResponse(['error' => true, 'message' => 'Le statut spécifié est introuvable'], Response::HTTP_NOT_FOUND);
         }
-        // Supprimer le covoiturage de MongoDB car une fois démarré les visiteurs ne doivent plus le trouver ailleurs que dans leur espace utilisateur
+
+        //Récupération du covoiturage
         $trip = $this->tripRepository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
-        if ($action == 'start') {
-            $this->tripMongoService->delete($trip->getId());
-        }
         //Récupérer les participants (user) du voyage
-        $users = $trip->getUser()->map(function ($user) {
+        $users = $trip->getUser()->map(function ($tripUser) {
             return [
-                'id' => $user->getId(),
-                'pseudo' => $user->getPseudo(),
-                'email' => $user->getEmail(),
+                'id' => $tripUser->getId(),
+                'pseudo' => $tripUser->getPseudo(),
+                'email' => $tripUser->getEmail(),
             ];
         })->toArray();
 
+
+
+        // Supprimer le covoiturage de MongoDB car une fois démarré les visiteurs ne doivent plus le trouver ailleurs que dans leur espace utilisateur
+        if ($action == 'start') {
+            $this->tripMongoService->delete($trip->getId());
+        }
+
         //Si action = stop, on envoie un mail à tous les passagers pour qu'ils valident le trajet
-        if ($action == 'stop')
+        //Si action = cancel, on envoie un mail à tous les passagers pour les prévenir.
+        if (in_array($action, ['cancel', 'stop']))
         {
+            //tableau des mailtype selon action
+            $mailType = ['cancel' => 'cancel', 'stop' => 'passengerValidation'];
+            //Envoi du mail type cancelTrip à tous les participants en remplaçant les données
+            // ou
             //Envoi du mail type passengerValidation à tous les participants en remplaçant les données
             foreach ($users as $userForMailing) {
                 $strToReplace = [
@@ -90,30 +101,14 @@ final class TripActionController extends AbstractController
                     "tripId" => $trip->getId(),
                 ];
 
-                $this->mailService->sendEmail($user->getEmail(), 'passengerValidation', $strToReplace);
+                $this->mailService->sendEmail($userForMailing['email'], $mailType[$action], $strToReplace);
             }
+
+            //Si cancel, on supprime le document dans MongoDB
+            if ($action == 'cancel') { $this->tripMongoService->delete($trip->getId()); }
 
         }
 
-
-        //Si action = cancel, on envoie un mail à tous les passagers pour les prévenir
-        if ($action == 'cancel')
-        {
-            //Envoi du mail type cancelTrip à tous les participants en remplaçant les données
-            foreach ($users as $userForMailing) {
-                $strToReplace = [
-                    "pseudo" => $userForMailing['pseudo'],
-                    "date" => $trip->getStartingAt()->format('d/m/Y'),
-                    "arrivalAddress" => $trip->getArrivalAddress()
-                ];
-
-                $this->mailService->sendEmail($user->getEmail(), 'cancel', $strToReplace);
-            }
-
-            //Suppression du document dans MongoDB
-            $confirmDeleteMongo = $this->tripMongoService->delete($trip->getId());
-
-        }
 
         $trip->setStatus($status);
         $trip->setUpdatedAt(new DateTimeImmutable());

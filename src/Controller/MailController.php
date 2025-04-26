@@ -6,15 +6,10 @@ use App\Entity\Mail;
 use App\Repository\MailRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
-use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
-use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Mime\Email;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 
@@ -29,22 +24,14 @@ final class MailController extends AbstractController
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
-    public function add(HtmlSanitizerInterface $htmlSanitizer, Request $request): JsonResponse
+    public function add(Request $request): JsonResponse
     {
         $mail = $this->serializer->deserialize($request->getContent(), Mail::class, 'json');
         $mail->setCreatedAt(new DateTimeImmutable());
 
         //Sécurisation des données HTML
-        $unsafeSubject = $request->getPayload()->get('subject');
-        $safeSubject = $htmlSanitizer->sanitize($unsafeSubject);
-        $mail->setSubject($safeSubject);
-
-        //Sécurisation des données HTML
-        $unsafeContent = $request->getPayload()->get('content');
-        if (!empty($unsafeContent)) {
-            $safeContent = $htmlSanitizer->sanitize($unsafeContent);
-            $mail->setContent($safeContent);
-        }
+        $request->getPayload()->get('subject') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8')): '';
+        $request->getPayload()->get('content') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8')): '';
 
         $this->manager->persist($mail);
         $this->manager->flush();
@@ -62,7 +49,7 @@ final class MailController extends AbstractController
     }
 
     #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
-    public function update(int $id, HtmlSanitizerInterface $htmlSanitizer, Request $request, MailRepository $mailRepository, EntityManagerInterface $entityManager): JsonResponse
+    public function update(int $id, Request $request, MailRepository $mailRepository): JsonResponse
     {
         $mail = $mailRepository->find($id);
 
@@ -70,11 +57,11 @@ final class MailController extends AbstractController
             return $this->json(['error' => 'Mail not found'], 404);
         }
 
-        $mail->setSubject($htmlSanitizer->sanitize($request->getPayload()->get('subject')));
-        $mail->setContent($htmlSanitizer->sanitize($request->getPayload()->get('content')));
+        $request->getPayload()->get('subject') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8')): '';
+        $request->getPayload()->get('content') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8')): '';
         $mail->setUpdatedAt(new DateTimeImmutable());
 
-        $entityManager->flush();
+        $this->manager->flush();
 
         return $this->json($mail);
     }

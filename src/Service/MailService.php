@@ -32,6 +32,9 @@ readonly class MailService
 
         $subject = $mail->getSubject();
         $content = $mail->getContent();
+        //on dé htmlspecialchar
+        $subject = htmlspecialchars_decode($subject, ENT_QUOTES);
+        $content = htmlspecialchars_decode($content, ENT_QUOTES);
 
         foreach ($strToReplace as $key => $value)
         {
