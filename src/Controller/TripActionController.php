@@ -30,7 +30,6 @@ final class TripActionController extends AbstractController
     {
     }
 
-
     #[Route('/{tripId}/addUser', name: 'addUser', methods: ['PUT'])]
     public function addUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
     {
