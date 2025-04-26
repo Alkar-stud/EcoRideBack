@@ -30,8 +30,14 @@ final class MailController extends AbstractController
         $mail->setCreatedAt(new DateTimeImmutable());
 
         //Sécurisation des données HTML
-        $request->getPayload()->get('subject') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8')): '';
-        $request->getPayload()->get('content') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8')): '';
+        if ($request->getPayload()->get('subject'))
+        {
+            $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8'));
+        }
+        if ($request->getPayload()->get('content'))
+        {
+            $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8'));
+        }
 
         $this->manager->persist($mail);
         $this->manager->flush();
@@ -57,8 +63,15 @@ final class MailController extends AbstractController
             return $this->json(['error' => 'Mail not found'], 404);
         }
 
-        $request->getPayload()->get('subject') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8')): '';
-        $request->getPayload()->get('content') ? $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8')): '';
+        //Sécurisation des données HTML
+        if ($request->getPayload()->get('subject'))
+        {
+            $mail->setContent(htmlspecialchars($request->getPayload()->get('subject'), ENT_QUOTES, 'UTF-8'));
+        }
+        if ($request->getPayload()->get('content'))
+        {
+            $mail->setContent(htmlspecialchars($request->getPayload()->get('content'), ENT_QUOTES, 'UTF-8'));
+        }
         $mail->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
