@@ -113,6 +113,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\ManyToMany(targetEntity: Trip::class, mappedBy: 'User')]
     private Collection $tripsUsers;
 
+    /**
+     * @var Collection<int, Notice>
+     */
+    #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'publishedBy')]
+    private Collection $noticesPublisher;
+
+    /**
+     * @var Collection<int, Notice>
+     */
+    #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'relatedFor')]
+    private Collection $noticesDriver;
+
+    /**
+     * @var Collection<int, Notice>
+     */
+    #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'validateBy')]
+    private Collection $noticesToValidate;
+
 
     /**
      * @throws RandomException
@@ -124,6 +142,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->preferences = new ArrayCollection();
         $this->trips = new ArrayCollection();
         $this->tripsUsers = new ArrayCollection();
+        $this->noticesPublisher = new ArrayCollection();
+        $this->noticesDriver = new ArrayCollection();
+        $this->noticesToValidate = new ArrayCollection();
 
     }
 
@@ -461,6 +482,96 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setFirstLogin(?bool $firstLogin): static
     {
         $this->firstLogin = $firstLogin;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Notice>
+     */
+    public function getNoticesPublisher(): Collection
+    {
+        return $this->noticesPublisher;
+    }
+
+    public function addNoticesPublisher(Notice $noticesPublisher): static
+    {
+        if (!$this->noticesPublisher->contains($noticesPublisher)) {
+            $this->noticesPublisher->add($noticesPublisher);
+            $noticesPublisher->setPublishedBy($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNoticesPublisher(Notice $noticesPublisher): static
+    {
+        if ($this->noticesPublisher->removeElement($noticesPublisher)) {
+            // set the owning side to null (unless already changed)
+            if ($noticesPublisher->getPublishedBy() === $this) {
+                $noticesPublisher->setPublishedBy(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Notice>
+     */
+    public function getNoticesDriver(): Collection
+    {
+        return $this->noticesDriver;
+    }
+
+    public function addNoticesDriver(Notice $noticesDriver): static
+    {
+        if (!$this->noticesDriver->contains($noticesDriver)) {
+            $this->noticesDriver->add($noticesDriver);
+            $noticesDriver->setRelatedFor($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNoticesDriver(Notice $noticesDriver): static
+    {
+        if ($this->noticesDriver->removeElement($noticesDriver)) {
+            // set the owning side to null (unless already changed)
+            if ($noticesDriver->getRelatedFor() === $this) {
+                $noticesDriver->setRelatedFor(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Notice>
+     */
+    public function getNoticesToValidate(): Collection
+    {
+        return $this->noticesToValidate;
+    }
+
+    public function addNoticesToValidate(Notice $noticesToValidate): static
+    {
+        if (!$this->noticesToValidate->contains($noticesToValidate)) {
+            $this->noticesToValidate->add($noticesToValidate);
+            $noticesToValidate->setValidateBy($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNoticesToValidate(Notice $noticesToValidate): static
+    {
+        if ($this->noticesToValidate->removeElement($noticesToValidate)) {
+            // set the owning side to null (unless already changed)
+            if ($noticesToValidate->getValidateBy() === $this) {
+                $noticesToValidate->setValidateBy(null);
+            }
+        }
 
         return $this;
     }
