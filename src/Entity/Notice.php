@@ -6,6 +6,7 @@ use App\Repository\NoticeRepository;
 use DateTimeImmutable;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: NoticeRepository::class)]
 class Notice
@@ -13,24 +14,30 @@ class Notice
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['notice_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['notice_read'])]
     private ?string $title = null;
 
     #[ORM\Column(type: Types::TEXT)]
+    #[Groups(['notice_read'])]
     private ?string $content = null;
 
     #[ORM\Column]
+    #[Groups(['notice_read'])]
     private ?int $grade = null;
 
     #[ORM\ManyToOne(inversedBy: 'noticesPublisher')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['notice_read'])]
     private ?User $publishedBy = null;
 
     #[ORM\ManyToOne(inversedBy: 'noticesDriver')]
     #[ORM\JoinColumn(nullable: false)]
-    private ?User $relatedFor = null;
+    #[Groups(['notice_read'])]
+    private ?Trip $relatedFor = null;
 
     #[ORM\ManyToOne(inversedBy: 'noticesToValidate')]
     private ?User $validateBy = null;
@@ -40,6 +47,7 @@ class Notice
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['notice_read'])]
     private ?NoticeStatus $status = null;
 
     #[ORM\Column]
@@ -101,12 +109,12 @@ class Notice
         return $this;
     }
 
-    public function getRelatedFor(): ?User
+    public function getRelatedFor(): ?Trip
     {
         return $this->relatedFor;
     }
 
-    public function setRelatedFor(?User $relatedFor): static
+    public function setRelatedFor(?Trip $relatedFor): static
     {
         $this->relatedFor = $relatedFor;
 

@@ -15,19 +15,19 @@ class Trip
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_detail', 'notice_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_detail', 'notice_read'])]
     private ?string $startingAddress = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_detail', 'notice_read'])]
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_detail', 'notice_read'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
@@ -49,7 +49,7 @@ class Trip
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_detail', 'notice_read'])]
     private ?User $owner = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
@@ -69,6 +69,20 @@ class Trip
 
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $UpdatedAt = null;
+
+    /**
+     * @var Collection<int, Notice>
+     */
+    #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'relatedFor')]
+    private Collection $noticesDriver;
+
+    #[ORM\Column(nullable: true)]
+    #[Groups(['trip_detail', 'notice_detail'])]
+    private ?\DateTimeImmutable $actualDepartureAt = null;
+
+    #[ORM\Column(nullable: true)]
+    #[Groups(['trip_detail', 'notice_detail'])]
+    private ?\DateTimeImmutable $ArrivalAt = null;
 
     public function __construct()
     {
@@ -236,6 +250,37 @@ class Trip
         return $this;
     }
 
+
+    /**
+     * @return Collection<int, Notice>
+     */
+    public function getNoticesDriver(): Collection
+    {
+        return $this->noticesDriver;
+    }
+
+    public function addNoticesDriver(Notice $noticesDriver): static
+    {
+        if (!$this->noticesDriver->contains($noticesDriver)) {
+            $this->noticesDriver->add($noticesDriver);
+            $noticesDriver->setRelatedFor($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNoticesDriver(Notice $noticesDriver): static
+    {
+        if ($this->noticesDriver->removeElement($noticesDriver)) {
+            // set the owning side to null (unless already changed)
+            if ($noticesDriver->getRelatedFor() === $this) {
+                $noticesDriver->setRelatedFor(null);
+            }
+        }
+
+        return $this;
+    }
+
     public function __call(string $name, array $arguments)
     {
         if (str_starts_with($name, 'set')) {
@@ -248,4 +293,29 @@ class Trip
 
         throw new \BadMethodCallException("La méthode {$name} n'existe pas.");
     }
+
+    public function getArrivalAt(): ?\DateTimeImmutable
+    {
+        return $this->ArrivalAt;
+    }
+
+    public function setArrivalAt(?\DateTimeImmutable $ArrivalAt): static
+    {
+        $this->ArrivalAt = $ArrivalAt;
+
+        return $this;
+    }
+
+    public function getActualDepartureAt(): ?\DateTimeImmutable
+    {
+        return $this->actualDepartureAt;
+    }
+
+    public function setActualDepartureAt(?\DateTimeImmutable $actualDepartureAt): static
+    {
+        $this->actualDepartureAt = $actualDepartureAt;
+
+        return $this;
+    }
+
 }

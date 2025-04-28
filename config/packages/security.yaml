@@ -39,6 +39,8 @@ security:
     access_control:
         - { path: ^/api/registration, roles : PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/notice/list, roles: PUBLIC_ACCESS }
+        - { path: ^/api/notice/, roles: ROLE_USER }
         - { path: ^/api/doc, roles : PUBLIC_ACCESS }
         - { path: ^/api/ecoride, roles: ROLE_ADMIN }
         - { path: ^/api/mail, roles: ROLE_ADMIN }

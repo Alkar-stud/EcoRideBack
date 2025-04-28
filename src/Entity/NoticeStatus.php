@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\NoticeStatusRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: NoticeStatusRepository::class)]
 class NoticeStatus
@@ -15,6 +16,7 @@ class NoticeStatus
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['notice_read'])]
     private ?string $libelle = null;
 
     #[ORM\Column]

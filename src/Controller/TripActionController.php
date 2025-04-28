@@ -131,6 +131,8 @@ final class TripActionController extends AbstractController
         // Supprimer le covoiturage de MongoDB car une fois démarré les visiteurs ne doivent plus le trouver ailleurs que dans leur espace utilisateur
         if ($action == 'start') {
             $this->tripMongoService->delete($trip->getId());
+            //on enregistre la date/heure de départ réelle
+            $trip->setActualDepartureAt(new DateTimeImmutable());
         }
 
         //Si action = stop, on envoie un mail à tous les passagers pour qu'ils valident le trajet
@@ -157,6 +159,8 @@ final class TripActionController extends AbstractController
 
             //Si cancel, on supprime le document dans MongoDB
             if ($action == 'cancel') { $this->tripMongoService->delete($trip->getId()); }
+            //Si stop, on enregistre la date et l'heure d'arrivée
+            if ($action == 'stop') { $trip->setArrivalAt(new DateTimeImmutable()); }
 
         }
         //Si finished, on ajoute les crédits au chauffeur : $user->setCredit(count($users) * $trip->getNbCredit() + $user->getCredit()));

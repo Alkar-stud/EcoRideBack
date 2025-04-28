@@ -19,11 +19,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail'])]
+    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail', 'notice_detail'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
-    #[Groups(['user_login', 'user_read'])]
+    #[Groups(['user_login', 'user_read', 'notice_read'])]
     private ?string $email = null;
 
     /**
@@ -45,7 +45,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $password;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail'])]
+    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail', 'notice_detail'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -57,7 +57,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $credits = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['user_read', 'trip_detail'])]
+    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
     private ?int $grade = null;
 
     #[ORM\Column(nullable: true)]
@@ -119,11 +119,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'publishedBy')]
     private Collection $noticesPublisher;
 
-    /**
-     * @var Collection<int, Notice>
-     */
-    #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'relatedFor')]
-    private Collection $noticesDriver;
+
 
     /**
      * @var Collection<int, Notice>
@@ -143,7 +139,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->trips = new ArrayCollection();
         $this->tripsUsers = new ArrayCollection();
         $this->noticesPublisher = new ArrayCollection();
-        $this->noticesDriver = new ArrayCollection();
         $this->noticesToValidate = new ArrayCollection();
 
     }
@@ -516,35 +511,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    /**
-     * @return Collection<int, Notice>
-     */
-    public function getNoticesDriver(): Collection
-    {
-        return $this->noticesDriver;
-    }
-
-    public function addNoticesDriver(Notice $noticesDriver): static
-    {
-        if (!$this->noticesDriver->contains($noticesDriver)) {
-            $this->noticesDriver->add($noticesDriver);
-            $noticesDriver->setRelatedFor($this);
-        }
-
-        return $this;
-    }
-
-    public function removeNoticesDriver(Notice $noticesDriver): static
-    {
-        if ($this->noticesDriver->removeElement($noticesDriver)) {
-            // set the owning side to null (unless already changed)
-            if ($noticesDriver->getRelatedFor() === $this) {
-                $noticesDriver->setRelatedFor(null);
-            }
-        }
-
-        return $this;
-    }
 
     /**
      * @return Collection<int, Notice>
