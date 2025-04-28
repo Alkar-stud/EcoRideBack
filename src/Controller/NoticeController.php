@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Serializer\SerializerInterface;
 
@@ -122,13 +123,13 @@ final class NoticeController extends AbstractController{
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
-
+    #[IsGranted('ROLE_EMPLOYEE')]
     public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
         // Recherche de l'avis correspondant
         $notice = $this->repository->findOneBy(['id' => $id]);
 
-        // Vérification si des notices existent
+        // Vérification si des avis existent
         if (empty($notice)) {
             return new JsonResponse(['message' => 'Cet avis n\'existe pas.'], Response::HTTP_NOT_FOUND);
         }
@@ -138,5 +139,90 @@ final class NoticeController extends AbstractController{
 
         return new JsonResponse($data, Response::HTTP_OK, [], true);
     }
+
+    #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
+    public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
+    {
+        // Recherche de l'avis correspondant dont seul le propriétaire peut modifier
+        $notice = $this->repository->findOneBy(['id' => $id, 'publishedBy' => $user]);
+        if (empty($notice)) {
+            return new JsonResponse(['message' => 'Cet avis n\'existe pas ou vous n\'avez pas le droit de le modifier.'], Response::HTTP_BAD_REQUEST);
+        }
+        // Recherche de l'entité NoticeStatus avec l'ID par défaut
+        $defaultNoticeStatusId = intval($this->noticeService->getDefaultStatus()) ?? 1;
+        $defaultNoticeStatus = $this->manager->getRepository(NoticeStatus::class)->find($defaultNoticeStatusId);
+        if (!$defaultNoticeStatus) {
+            return new JsonResponse(['error' => true, 'message' => 'Default status not found'], Response::HTTP_NOT_FOUND);
+        }
+        //Si l'avis est à l'état initial
+        if ($notice->getStatus()->getId() != $defaultNoticeStatusId)
+        {
+            return new JsonResponse(['message' => 'Cet avis n\'est plus modifiable.'], Response::HTTP_FORBIDDEN);
+        }
+        $noticeStatus = $this->serializer->deserialize(
+            $request->getContent(),
+            Notice::class,
+            'json',
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $notice]
+        );
+        $notice->setUpdatedAt(new DateTimeImmutable());
+        $this->manager->flush();
+
+        $responseData = $this->serializer->serialize(
+            $notice,
+            'json',
+            ['groups' => ['notice_read']]
+        );
+        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+    }
+
+    #[Route('/changeStatus/{id}', name: 'change_status', methods: 'PUT')]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function changeStatus(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
+    {
+        // Recherche de l'avis correspondant dont seul le propriétaire peut modifier
+        $notice = $this->repository->findOneBy(['id' => $id]);
+        if (empty($notice)) {
+            return new JsonResponse(['message' => 'Cet avis n\'existe pas ou vous n\'avez pas le droit de le modifier.'], Response::HTTP_BAD_REQUEST);
+        }
+        //Vérification de l'existence du statut
+        $content = json_decode($request->getContent(), true); // Décoder en tableau associatif
+        $statusId = $content['status'] ?? null;
+        $noticeStatus = $this->manager->getRepository(NoticeStatus::class)->find($statusId);
+        $noticesStatus = $this->manager->getRepository(NoticeStatus::class)->findAll();
+
+        $isStatusFound = array_filter(
+            $noticesStatus,
+            fn(NoticeStatus $status) => $status->getId() === $noticeStatus?->getId()
+        );
+
+        if (empty($isStatusFound)) {
+            return new JsonResponse(['message' => 'Ce statut n\'existe pas.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        //Modification du statut de l'avis
+        $notice->setStatus($noticeStatus);
+        $notice->setValidateBy($user);
+        $notice->setValidateAt(new DateTimeImmutable());
+        $notice->setUpdatedAt(new DateTimeImmutable());
+        $this->manager->flush();
+
+        return new JsonResponse(
+            [
+                'id'  => $notice->getId(),
+                'status'  => [
+                    'libelle' => $notice->getStatus()?->getLibelle()
+                ],
+                'title'  => $notice->getTitle(),
+                'validateBy'  => $notice->getValidateBy()->getPseudo(),
+                'validateAt'  => $notice->getValidateAt(),
+            ],
+            Response::HTTP_CREATED
+        );
+    }
+
+
+
+
 
 }
