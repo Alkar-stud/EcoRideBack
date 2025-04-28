@@ -55,9 +55,11 @@ class Vehicle
     private ?User $owner = null;
 
     #[ORM\Column]
+    #[Groups(['user_read', 'vehicle_read'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_read', 'vehicle_read'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     /**

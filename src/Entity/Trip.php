@@ -15,36 +15,36 @@ class Trip
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['trip_detail', 'notice_read'])]
+    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['trip_detail', 'notice_read'])]
+    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
     private ?string $startingAddress = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['trip_detail', 'notice_read'])]
+    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
-    #[Groups(['trip_detail', 'notice_read'])]
+    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?int $duration = null;
 
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?int $nbCredit = null;
 
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?int $nbPlaceRemaining = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?TripStatus $status = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
@@ -54,7 +54,7 @@ class Trip
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?Vehicle $vehicle = null;
 
     /**

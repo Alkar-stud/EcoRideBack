@@ -7,8 +7,15 @@ use App\Entity\Preferences;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
+use OpenApi\Attributes\RequestBody;
+use OpenApi\Attributes\Property;
+use OpenApi\Attributes\MediaType;
+use OpenApi\Attributes\Schema;
+use Nelmio\ApiDocBundle\Attribute\Model;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -28,6 +35,44 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/registration', name: 'registration', methods: 'POST')]
+    #[OA\Tag(name: 'User')]
+    #[OA\Post(
+        path:"/api/registration",
+        summary:"Inscription d'un nouvel utilisateur",
+        requestBody :new RequestBody(
+            description: "Données de l'utilisateur à inscrire",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                        property: "pseudo",
+                        type: "string",
+                        example: "Pseudo"
+                    ),
+                    new Property(
+                        property: "email",
+                        type: "string",
+                        example: "adresse@email.com"
+                    ),
+                    new Property(
+                        property: "password",
+                        type: "string",
+                        example: "Mot de passe"
+                    )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 201,
+        description: 'Utilisateur inscrit avec succès',
+        content: new Model(type: User::class, groups: ['user_login'])
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Mot de passe pas assez complexe : au moins 1 "long", "uppercase", "lowercase", "digit" ou "special" character ou il manque le pseudo'
+    )]
+    #[OA\Response(
+        response: 409,
+        description: 'Ce compte existe déjà'
+    )]
     public function register(Request $request, UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
         $user = $this->serializer->deserialize($request->getContent(), User::class, 'json');
@@ -74,13 +119,13 @@ final class SecurityController extends AbstractController
         $petsPreference->setDescription('no');
         $petsPreference->setUser($user);
         $petsPreference->setCreatedAt(new DateTimeImmutable());
-
+        //Création des préférences pour le user
         $this->manager->persist($smokingPreference);
         $this->manager->persist($petsPreference);
 
+        //Association des préférences au user
         $user->addPreference($smokingPreference);
         $user->addPreference($petsPreference);
-
 
         $user->setCreatedAt(new DateTimeImmutable());
 
@@ -97,7 +142,32 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/login', name: 'login', methods: 'POST')]
-    public function login(#[CurrentUser] ?User $user): JsonResponse
+    #[OA\Tag(name: 'User')]
+    #[OA\Post(
+        path:"/api/login",
+        summary:"Connecter un utilisateur",
+        requestBody :new RequestBody(
+            description: "Données de l’utilisateur pour se connecter",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "email",
+                    type: "string",
+                    example: "adresse@email.com"
+                ),
+                    new Property(
+                        property: "password",
+                        type: "string",
+                        example: "Mot de passe"
+                    )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: "Connexion réussie",
+        content: new Model(type: User::class, groups: ['user_login'])
+    )]
+    public function login(#[CurrentUser] ?User $user): JsonResponse | RedirectResponse
     {
         if (null === $user) {
             return new JsonResponse(['error' => true, 'message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
@@ -117,6 +187,20 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/account/me', name: 'account_me', methods: 'GET')]
+    #[OA\Tag(name: 'User')]
+    #[OA\Get(
+        path:"/api/account/me",
+        summary:"Récupérer toutes les informations du User connecté",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'User trouvé avec succès',
+        content: new Model(type: User::class, groups: ['user_read'])
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'User non trouvé'
+    )]
     public function me(#[CurrentUser] ?User $user): JsonResponse
     {
         if (null === $user) {
@@ -133,6 +217,45 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/account/edit', name: 'account_edit', methods: 'PUT')]
+    #[OA\Tag(name: 'User')]
+    #[OA\Put(
+        path:"/api/account/edit",
+        summary:"Modifier son compte utilisateur",
+        requestBody :new RequestBody(
+            description: "Données de l'utilisateur à modifier",
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                        property: "pseudo",
+                        type: "string",
+                        example: "Nouveau pseudo"
+                    ),
+                    new Property(
+                        property: "photo",
+                        type: "string",
+                        example: "Nouvelle photo"
+                    ),
+                    new Property(
+                        property: "isDriver",
+                        type: "boolean",
+                        example: true
+                    ),
+                    new Property(
+                        property: "isPassenger",
+                        type: "boolean",
+                        example: true
+                    ),
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'User modifié avec succès',
+        content: new Model(type: User::class, groups: ['user_read'])
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'User non trouvé'
+    )]
     public function edit(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         if (null === $user) {
@@ -174,6 +297,32 @@ final class SecurityController extends AbstractController
         );
 
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+    }
+
+    #[Route('/account', name: 'account_delete', methods: 'DELETE')]
+    #[OA\Tag(name: 'User')]
+    #[OA\Delete(
+        path:"/api/account",
+        summary:"Supprimer son compte utilisateur",
+    )]
+    #[OA\Response(
+        response: 204,
+        description: 'User supprimé avec succès'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'User non trouvé'
+    )]
+    public function delete(#[CurrentUser] ?User $user): JsonResponse
+    {
+        if ($user) {
+            $this->manager->remove($user);
+            $this->manager->flush();
+
+            return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+        }
+
+        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
     }
 
 }

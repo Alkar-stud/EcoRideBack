@@ -19,7 +19,7 @@ class TripStatus
     private ?int $id = null;
 
     #[ORM\Column(length: 25)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['user_read', 'trip_detail'])]
     private ?string $libelle = null;
 
     #[ORM\Column(length: 20)]

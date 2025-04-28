@@ -27,13 +27,14 @@ class Preferences
 
     #[ORM\ManyToOne(inversedBy: 'preferences')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['preferences_user'])]
     private ?User $user = null;
 
     #[ORM\Column]
+    #[Groups(['user_read'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_read'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     public function getId(): ?int

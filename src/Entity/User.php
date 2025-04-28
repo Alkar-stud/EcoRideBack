@@ -19,7 +19,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail', 'notice_detail'])]
+    #[Groups(['user_read', 'vehicle_read', 'trip_detail', 'notice_detail'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
@@ -30,7 +30,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var list<string> The user roles
      */
     #[ORM\Column]
-    #[Groups(['user_login'])]
+    #[Groups(['user_login', 'user_read'])]
     private array $roles = [];
 
     /**
@@ -45,7 +45,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $password;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_login', 'user_read', 'vehicle_read', 'preferences_user', 'trip_detail', 'notice_detail'])]
+    #[Groups(['user_login', 'user_read', 'vehicle_read', 'trip_detail', 'notice_detail'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -75,10 +75,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private ?bool $isActive = true;
 
-    #[ORM\Column(nullable: true)]
-    #[Groups(['user_read', 'user_login'])]
-    private ?bool $firstLogin = true;
-
     #[ORM\Column]
     #[Groups(['user_read'])]
     private ?DateTimeImmutable $createdAt = null;
@@ -105,6 +101,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Trip>
      */
     #[ORM\OneToMany(targetEntity: Trip::class, mappedBy: 'owner')]
+    #[Groups(['user_read'])]
     private Collection $trips;
 
     /**
@@ -465,18 +462,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         if ($this->tripsUsers->removeElement($tripsUser)) {
             $tripsUser->removeUser($this);
         }
-
-        return $this;
-    }
-
-    public function isFirstLogin(): ?bool
-    {
-        return $this->firstLogin;
-    }
-
-    public function setFirstLogin(?bool $firstLogin): static
-    {
-        $this->firstLogin = $firstLogin;
 
         return $this;
     }

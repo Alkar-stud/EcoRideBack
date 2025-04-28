@@ -7,6 +7,12 @@ use App\Entity\User;
 use App\Repository\PreferencesRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes\MediaType;
+use OpenApi\Attributes\Property;
+use OpenApi\Attributes\RequestBody;
+use OpenApi\Attributes\Schema;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,16 +35,37 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
+    #[OA\Tag(name: 'User/Preferences')]
+    #[OA\Post(
+        path:"/api/account/preferences/add",
+        summary:"Ajout d'une préférence à l'utilisateur connecté",
+        requestBody :new RequestBody(
+            description: "Données de la préférence à inscrire",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "libelle",
+                    type: "string",
+                    example: "Ma préférence"
+                ),
+                    new Property(
+                        property: "description",
+                        type: "text",
+                        example: "J'écoute du métal"
+                    )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 201,
+        description: 'Préférence ajoutée avec succès',
+        content: new Model(type: User::class, groups: ['preferences_user'])
+    )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         $preferences = $this->serializer->deserialize($request->getContent(), Preferences::class, 'json');
         $preferences->setCreatedAt(new DateTimeImmutable());
         $preferences->setUser($user);
-
-        // Convertir le champ "libelle" en camelCase
-        $libelle = $preferences->getLibelle();
-        $camelCaseLibelle = lcfirst(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $libelle))));
-        $preferences->setLibelle($camelCaseLibelle);
+        $preferences->setLibelle($preferences->getLibelle());
 
         $this->manager->persist($preferences);
         $this->manager->flush();
@@ -56,6 +83,16 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/list/', name: 'showAll', methods: 'GET')]
+    #[OA\Tag(name: 'User/Preferences')]
+    #[OA\Get(
+        path:"/api/account/preferences/list/",
+        summary:"Récupérer toutes les préférences du User connecté",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Préférences trouvées avec succès',
+        content: new Model(type: Preferences::class, groups: ['preferences_user'])
+    )]
     public function showAll(#[CurrentUser] ?User $user): JsonResponse
     {
         $preferences = $this->repository->findBy(['user' => $user->getId()]);
@@ -73,6 +110,20 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
+    #[OA\Tag(name: 'User/Preferences')]
+    #[OA\Get(
+        path:"/api/account/preferences/{id}",
+        summary:"Récupérer une préférence du User connecté",
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Préférence non trouvée'
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Préférence trouvée avec succès',
+        content: new Model(type: Preferences::class, groups: ['preferences_user'])
+    )]
     public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
 
@@ -87,6 +138,35 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
+    #[OA\Tag(name: 'User/Preferences')]
+    #[OA\Put(
+        path:"/api/account/preferences/edit/{id}",
+        summary:"Modifier une préférence du User connecté",
+        requestBody :new RequestBody(
+            description: "Données de l'utilisateur à modifier",
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "libelle",
+                    type: "string",
+                    example: "Nouveau libellé"
+                ),
+                    new Property(
+                        property: "description",
+                        type: "string",
+                        example: "Nouvelle description"
+                    ),
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Préférence non trouvée'
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Préférence modifiée avec succès',
+        content: new Model(type: Preferences::class, groups: ['preferences_user'])
+    )]
     public function edit(#[CurrentUser] ?User $user, int $id, Request $request): JsonResponse
     {
         $preferences = $this->repository->findOneBy(['id' => $id , 'user' => $user->getId()]);
@@ -100,10 +180,6 @@ final class PreferencesController extends AbstractController
             );
             $preferences->setUpdatedAt(new DateTimeImmutable());
 
-            // Convertir le champ "libelle" en camelCase
-            $libelle = $preferences->getLibelle();
-            $camelCaseLibelle = lcfirst(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $libelle))));
-            $preferences->setLibelle($camelCaseLibelle);
 
             $this->manager->flush();
 
@@ -116,6 +192,19 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    #[OA\Tag(name: 'User/Preferences')]
+    #[OA\Delete(
+        path:"/api/account/preferences/{id}",
+        summary:"Supprimer une préférence",
+    )]
+    #[OA\Response(
+        response: 204,
+        description: 'Préférence supprimée avec succès'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Préférence non trouvée'
+    )]
     public function delete(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
         $preferences = $this->repository->findOneBy(['id' => $id, 'user' => $user->getId()]);
