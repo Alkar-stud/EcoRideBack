@@ -13,5 +13,14 @@ nelmio_api_doc:
         security:
             - X-AUTH-TOKEN: [ ]
     areas: # to filter documented areas
-        path_patterns:
-            - ^/api(?!/doc$) # Accepts routes under /api except /api/doc
+        default:
+            path_patterns:
+                - ^/api(?!/doc$) # Accepts routes under /api except /api/doc
+            disable_default_routes: false
+            with_attribute: false
+        ecoride:
+            name_patterns: [ ecoride, energy ]
+            with_attribute: true # must be true to only display in /api/doc/ecoride
+            documentation:
+                info:
+                    description: "Voici la doc pour la paramétrage du site, à ne modifier que si vous savez ce que vous faites !"

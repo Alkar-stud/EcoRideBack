@@ -7,6 +7,7 @@ use App\Entity\User;
 use App\Repository\PreferencesRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Nelmio\ApiDocBundle\Attribute\Areas;
 use OpenApi\Attributes as OA;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes\MediaType;
@@ -23,6 +24,8 @@ use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/account/preferences', name: 'app_api_account_preferences_')]
+#[OA\Tag(name: 'User/Preferences')]
+#[Areas(["default"])]
 final class PreferencesController extends AbstractController
 {
 
@@ -35,7 +38,6 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
-    #[OA\Tag(name: 'User/Preferences')]
     #[OA\Post(
         path:"/api/account/preferences/add",
         summary:"Ajout d'une préférence à l'utilisateur connecté",
@@ -83,7 +85,6 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/list/', name: 'showAll', methods: 'GET')]
-    #[OA\Tag(name: 'User/Preferences')]
     #[OA\Get(
         path:"/api/account/preferences/list/",
         summary:"Récupérer toutes les préférences du User connecté",
@@ -110,7 +111,6 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
-    #[OA\Tag(name: 'User/Preferences')]
     #[OA\Get(
         path:"/api/account/preferences/{id}",
         summary:"Récupérer une préférence du User connecté",
@@ -137,10 +137,9 @@ final class PreferencesController extends AbstractController
         return new JsonResponse(['error' => true, 'message' => 'Cette préférence n\'existe pas.'], Response::HTTP_NOT_FOUND);
     }
 
-    #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
-    #[OA\Tag(name: 'User/Preferences')]
+    #[Route('/{id}', name: 'edit', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/account/preferences/edit/{id}",
+        path:"/api/account/preferences/{id}",
         summary:"Modifier une préférence du User connecté",
         requestBody :new RequestBody(
             description: "Données de l'utilisateur à modifier",
@@ -192,7 +191,6 @@ final class PreferencesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    #[OA\Tag(name: 'User/Preferences')]
     #[OA\Delete(
         path:"/api/account/preferences/{id}",
         summary:"Supprimer une préférence",

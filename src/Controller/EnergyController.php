@@ -6,6 +6,8 @@ use App\Entity\Energy;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Repository\EnergyRepository;
 use DateTimeImmutable;
+use Nelmio\ApiDocBundle\Attribute\Areas;
+use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,6 +18,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/api/energy', name: 'app_api_energy_')]
+#[OA\Tag(name: 'Energy')]
 final class EnergyController extends AbstractController{
 
     public function __construct(
@@ -28,6 +31,7 @@ final class EnergyController extends AbstractController{
     }
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN')]
+    #[Areas(["ecoride"])]
     public function add(Request $request): JsonResponse
     {
         $energy = $this->serializer->deserialize($request->getContent(), Energy::class, 'json');
@@ -52,6 +56,7 @@ final class EnergyController extends AbstractController{
         );
     }
     #[Route('/list/', name: 'showAll', methods: 'GET')]
+    #[Areas(["default"])]
     public function showAll(): JsonResponse
     {
         $energies = $this->repository->findBy([], ['isEco' => 'DESC', 'libelle' => 'ASC']);
@@ -69,6 +74,7 @@ final class EnergyController extends AbstractController{
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
+    #[Areas(["default"])]
     public function showById(int $id): JsonResponse
     {
 
@@ -92,6 +98,7 @@ final class EnergyController extends AbstractController{
 
     #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
     #[IsGranted('ROLE_ADMIN')]
+    #[Areas(["ecoride"])]
     public function edit(int $id, Request $request): JsonResponse
     {
         $energy = $this->repository->findOneBy(['id' => $id]);
@@ -129,6 +136,7 @@ final class EnergyController extends AbstractController{
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_ADMIN')]
+    #[Areas(["ecoride"])]
     public function delete(int $id): JsonResponse
     {
         $energy = $this->repository->findOneBy(['id' => $id]);

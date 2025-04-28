@@ -7,6 +7,7 @@ use App\Entity\Preferences;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Nelmio\ApiDocBundle\Attribute\Areas;
 use OpenApi\Attributes as OA;
 use OpenApi\Attributes\RequestBody;
 use OpenApi\Attributes\Property;
@@ -25,6 +26,8 @@ use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api', name: 'app_api_')]
+#[OA\Tag(name: 'User')]
+#[Areas(["default"])]
 final class SecurityController extends AbstractController
 {
     public function __construct(
@@ -35,7 +38,6 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/registration', name: 'registration', methods: 'POST')]
-    #[OA\Tag(name: 'User')]
     #[OA\Post(
         path:"/api/registration",
         summary:"Inscription d'un nouvel utilisateur",
@@ -142,7 +144,6 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/login', name: 'login', methods: 'POST')]
-    #[OA\Tag(name: 'User')]
     #[OA\Post(
         path:"/api/login",
         summary:"Connecter un utilisateur",
@@ -187,7 +188,6 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/account/me', name: 'account_me', methods: 'GET')]
-    #[OA\Tag(name: 'User')]
     #[OA\Get(
         path:"/api/account/me",
         summary:"Récupérer toutes les informations du User connecté",
@@ -217,7 +217,6 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/account/edit', name: 'account_edit', methods: 'PUT')]
-    #[OA\Tag(name: 'User')]
     #[OA\Put(
         path:"/api/account/edit",
         summary:"Modifier son compte utilisateur",
@@ -300,7 +299,6 @@ final class SecurityController extends AbstractController
     }
 
     #[Route('/account', name: 'account_delete', methods: 'DELETE')]
-    #[OA\Tag(name: 'User')]
     #[OA\Delete(
         path:"/api/account",
         summary:"Supprimer son compte utilisateur",
