@@ -44,7 +44,7 @@ final class VehicleController extends AbstractController
         path:"/api/vehicle/add",
         summary:"Ajout d'un nouveau véhicule",
         requestBody :new RequestBody(
-            description: "Données du véhicule à ajouter'",
+            description: "Données du véhicule à ajouter",
             required: true,
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
