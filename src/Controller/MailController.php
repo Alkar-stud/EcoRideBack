@@ -113,7 +113,7 @@ final class MailController extends AbstractController
         response: 404,
         description: 'Véhicule non trouvé'
     )]
-    public function index(MailRepository $mailRepository): JsonResponse
+    public function showAll(MailRepository $mailRepository): JsonResponse
     {
         $mails = $mailRepository->findAll();
 

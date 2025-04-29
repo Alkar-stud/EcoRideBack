@@ -15,33 +15,25 @@ class TripStatus
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_status_read'])]
     private ?int $id = null;
 
-    #[ORM\Column(length: 25)]
-    #[Groups(['user_read', 'trip_detail'])]
+    #[ORM\Column(length: 50)]
+    #[Groups(['trip_status_read', 'trip_detail'])]
     private ?string $libelle = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['trip_detail'])]
+    #[Groups(['trip_status_read'])]
     private ?string $code = null;
 
     #[ORM\Column]
+    #[Groups(['trip_status_read'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['trip_status_read'])]
     private ?DateTimeImmutable $updatedAt = null;
 
-    /**
-     * @var Collection<int, Trip>
-     */
-    #[ORM\OneToMany(targetEntity: Trip::class, mappedBy: 'status')]
-    private Collection $trips;
-
-    public function __construct()
-    {
-        $this->trips = new ArrayCollection();
-    }
 
     public function getId(): ?int
     {
@@ -96,33 +88,4 @@ class TripStatus
         return $this;
     }
 
-    /**
-     * @return Collection<int, Trip>
-     */
-    public function getTrips(): Collection
-    {
-        return $this->trips;
-    }
-
-    public function addTrip(Trip $trip): static
-    {
-        if (!$this->trips->contains($trip)) {
-            $this->trips->add($trip);
-            $trip->setStatus($this);
-        }
-
-        return $this;
-    }
-
-    public function removeTrip(Trip $trip): static
-    {
-        if ($this->trips->removeElement($trip)) {
-            // set the owning side to null (unless already changed)
-            if ($trip->getStatus() === $this) {
-                $trip->setStatus(null);
-            }
-        }
-
-        return $this;
-    }
 }
