@@ -13,15 +13,15 @@ class Energy
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?string $libelle = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?bool $isEco = null;
 
     #[ORM\Column]

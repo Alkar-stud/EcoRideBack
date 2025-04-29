@@ -17,49 +17,48 @@ class Vehicle
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?string $brand = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?string $model = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     private ?string $color = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['vehicle_read', 'user_read'])]
+    #[Groups(['vehicle_read'])]
     private ?string $registration = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
-    #[Groups(['vehicle_read', 'user_read'])]
+    #[Groups(['vehicle_read'])]
     private ?DateTimeInterface $registrationFirstDate = null;
 
     #[ORM\Column]
-    #[Groups(['vehicle_read', 'user_read'])]
+    #[Groups(['vehicle_read'])]
     private ?int $nbPlace = null;
 
     #[ORM\ManyToOne]
-    #[Groups(['vehicle_read', 'user_read', 'trip_detail'])]
+    #[Groups(['vehicle_read'])]
     #[ORM\JoinColumn(nullable: false)]
     private ?Energy $energy = null;
 
     #[ORM\ManyToOne(inversedBy: 'vehicles')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['vehicle_read'])]
     private ?User $owner = null;
 
     #[ORM\Column]
-    #[Groups(['user_read', 'vehicle_read'])]
+    #[Groups(['vehicle_read'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['user_read', 'vehicle_read'])]
+    #[Groups(['vehicle_read'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     /**

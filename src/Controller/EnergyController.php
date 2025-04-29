@@ -7,7 +7,12 @@ use Doctrine\ORM\EntityManagerInterface;
 use App\Repository\EnergyRepository;
 use DateTimeImmutable;
 use Nelmio\ApiDocBundle\Attribute\Areas;
+use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
+use OpenApi\Attributes\MediaType;
+use OpenApi\Attributes\Property;
+use OpenApi\Attributes\RequestBody;
+use OpenApi\Attributes\Schema;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,6 +37,30 @@ final class EnergyController extends AbstractController{
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN')]
     #[Areas(["ecoride"])]
+    #[OA\Post(
+        path:"/api/energy/add",
+        summary:"Ajout d'un type d'énergie",
+        requestBody :new RequestBody(
+            description: "Données de l'énergie à ajouter'",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "libelle",
+                    type: "string",
+                    example: "L'énergie du futur !"
+                ),
+                    new Property(
+                        property: "isEco",
+                        type: "boolean",
+                        example: true
+                    )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 201,
+        description: 'Préférence ajoutée avec succès',
+        content: new Model(type: Energy::class)
+    )]
     public function add(Request $request): JsonResponse
     {
         $energy = $this->serializer->deserialize($request->getContent(), Energy::class, 'json');
@@ -57,6 +86,15 @@ final class EnergyController extends AbstractController{
     }
     #[Route('/list/', name: 'showAll', methods: 'GET')]
     #[Areas(["default"])]
+    #[OA\Get(
+        path:"/api/energy/list/",
+        summary:"Récupérer toutes les énergies.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Énergies trouvées avec succès',
+        content: new Model(type: Energy::class)
+    )]
     public function showAll(): JsonResponse
     {
         $energies = $this->repository->findBy([], ['isEco' => 'DESC', 'libelle' => 'ASC']);
@@ -75,30 +113,63 @@ final class EnergyController extends AbstractController{
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
     #[Areas(["default"])]
+    #[OA\Get(
+        path:"/api/energy/{id}",
+        summary:"Récupérer une énergie à l'aide de son ID.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Énergie trouvée avec succès',
+        content: new Model(type: Energy::class)
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Énergie non trouvée'
+    )]
     public function showById(int $id): JsonResponse
     {
-
         $energy = $this->repository->findOneBy(['id' => $id]);
         if ($energy) {
-            return new JsonResponse(
-                [
-                    'id'  => $energy->getId(),
-                    'libelle'  => $energy->getLibelle(),
-                    'isEco' => $energy->isEco(),
-                    'createdAt' => $energy->getCreatedAt(),
-                    'updateAt' => $energy->getUpdatedAt()
-                ],
-                Response::HTTP_OK
-            );
+            $responseData = $this->serializer->serialize($energy, 'json');
+
+            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
     }
 
 
-    #[Route('/edit/{id}', name: 'edit', methods: ['PUT'])]
+    #[Route('/{id}', name: 'edit', methods: ['PUT'])]
     #[IsGranted('ROLE_ADMIN')]
     #[Areas(["ecoride"])]
+    #[OA\Put(
+        path:"/api/energy/{id}",
+        summary:"Modification d'un type d'énergie",
+        requestBody :new RequestBody(
+            description: "Données du type d'énergie à modifier",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "libelle",
+                    type: "string",
+                    example: "Le nouveau nom de l'énergie du futur !"
+                ),
+                    new Property(
+                        property: "isEco",
+                        type: "boolean",
+                        example: true
+                    )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Paramètre non trouvé'
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Paramètre modifié avec succès',
+        content: new Model(type: Energy::class)
+    )]
     public function edit(int $id, Request $request): JsonResponse
     {
         $energy = $this->repository->findOneBy(['id' => $id]);
@@ -137,6 +208,18 @@ final class EnergyController extends AbstractController{
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_ADMIN')]
     #[Areas(["ecoride"])]
+    #[OA\Delete(
+        path:"/api/energy/{id}",
+        summary:"Supprimer un type d'énergie.",
+    )]
+    #[OA\Response(
+        response: 204,
+        description: 'Type d\'énergie supprimé avec succès'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Paramètre non trouvé'
+    )]
     public function delete(int $id): JsonResponse
     {
         $energy = $this->repository->findOneBy(['id' => $id]);
