@@ -17,11 +17,11 @@ class Energy
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?string $libelle = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?bool $isEco = null;
 
     #[ORM\Column]

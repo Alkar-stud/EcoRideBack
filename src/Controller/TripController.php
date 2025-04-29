@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Trip;
 use App\Entity\User;
+use App\Entity\Vehicle;
 use App\Repository\TripRepository;
 use App\Service\TripMongoService;
 use App\Service\TripService;
@@ -12,6 +13,11 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Model;
+use OpenApi\Attributes\MediaType;
+use OpenApi\Attributes\Property;
+use OpenApi\Attributes\RequestBody;
+use OpenApi\Attributes\Schema;
 use ReflectionMethod;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,6 +27,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/trip', name: 'app_api_trip_')]
@@ -40,6 +47,56 @@ final class TripController extends AbstractController
     }
 
     #[Route('/add', name: 'add', methods: ['POST'])]
+    #[OA\Post(
+        path:"/api/trip/add",
+        summary:"Ajout d'un nouveau covoiturage",
+        requestBody :new RequestBody(
+            description: "Données du statut du covoiturage. duration est le temps de trajet en minutes",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "startingAddress",
+                    type: "string",
+                    example: "Adresse de départ"
+                ),
+                    new Property(
+                        property: "arrivalAddress",
+                        type: "string",
+                        example: "Adresse d'arrivée"
+                    ),
+                    new Property(
+                        property: "startingAt",
+                        type: "datetime",
+                        example: "2025-07-01 10:00:00"
+                    ),
+                    new Property(
+                        property: "duration",
+                        type: "integer",
+                        example: 120
+                    ),
+                    new Property(
+                        property: "nbCredit",
+                        type: "integer",
+                        example: 15
+                    ),
+                    new Property(
+                        property: "nbPlaceRemaining",
+                        type: "integer",
+                        example: 3
+                    ),
+                    new Property(
+                        property: "vehicle",
+                        type: "integer",
+                        example: 3
+                    ),
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 201,
+        description: 'Covoiturage ajouté avec succès',
+        content: new Model(type: Trip::class, groups: ['trip_read'])
+    )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         $trip = $this->serializer->deserialize($request->getContent(), Trip::class, 'json');
@@ -83,7 +140,6 @@ final class TripController extends AbstractController
             'nbParticipant' => 0,
             // Données utilisateur
             'owner' => [
-                'id' => $user->getId(),
                 'pseudo' => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
                 'grade' => $user->getGrade(),
@@ -202,26 +258,84 @@ final class TripController extends AbstractController
      * @throws TransportExceptionInterface
      */
     #[Route('/edit/{id}/update', name: 'edit', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/trip/edit/{id}/update",
+        summary:"Modification d'un covoiturage",
+        requestBody :new RequestBody(
+            description: "Données du statut du covoiturage. duration est le temps de trajet en minutes",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "startingAddress",
+                    type: "string",
+                    example: "Adresse de départ"
+                ),
+                    new Property(
+                        property: "arrivalAddress",
+                        type: "string",
+                        example: "Adresse d'arrivée"
+                    ),
+                    new Property(
+                        property: "startingAt",
+                        type: "datetime",
+                        example: "2025-07-01 10:00:00"
+                    ),
+                    new Property(
+                        property: "duration",
+                        type: "integer",
+                        example: 120
+                    ),
+                    new Property(
+                        property: "nbCredit",
+                        type: "integer",
+                        example: 15
+                    ),
+                    new Property(
+                        property: "nbPlaceRemaining",
+                        type: "integer",
+                        example: 3
+                    ),
+                    new Property(
+                        property: "vehicle",
+                        type: "integer",
+                        example: 3
+                    ),
+                ], type: "object"))]
+        ),
+
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Covoiturage modifié avec succès.',
+        content: new Model(type: Trip::class, groups: ['trip_read'])
+    )]
+    #[OA\Response(
+        response: 403,
+        description: 'Covoiturage non modifiable.'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Covoiturage non trouvé.'
+    )]
     public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
     {
         $trip = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
+        //Si le covoiturage n'existe pas
         if (!$trip) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
-        $originalVehicleId = $trip->getVehicle()->getId();
-        //Seul l'update des datas sera traité ici, possible en fonction du statut du covoiturage, donc le statut sera modifié ailleurs. Owner n'est pas modifiable non plus
+        //Seul l'update des datas sera traité ici, possible en fonction du statut du covoiturage, donc le statut sera modifié ailleurs.
+        //Les autres dates seront ajoutées/modifiées aux changements de statut
+        // Owner n'est pas modifiable non plus
         $possibleActions = $this->tripService->getPossibleActions();
         //Vérification si l'action 'update' existe, et si elle est possible en fonction du statut du covoiturage
         if (!array_key_exists('update', $possibleActions) || !in_array($trip->getStatus()?->getCode(), $possibleActions['update']['initial']))
         {
-            $returnMessage = [
-                "error" => true,
-                "message" => "Le covoiturage ne peut pas être modifié en l\'état.",
-                "httpStatus" => Response::HTTP_FORBIDDEN
-            ];
-            goto retour;
+            return new JsonResponse(['error' => true, 'message' => 'Le covoiturage ne peut pas être modifié en l\'état.'], Response::HTTP_FORBIDDEN);
         }
+
+        $originalVehicleId = $trip->getVehicle()->getId();
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
 
         //Récupérer les participants (user) du voyage
@@ -232,7 +346,6 @@ final class TripController extends AbstractController
                 'email' => $user->getEmail(),
             ];
         })->toArray();
-
 
         //Modification impossible si des participants sont inscrits, sauf si on augmente le nombre de places
         /* Si participants == 0 → on peut modifier (presque) tout
@@ -248,6 +361,13 @@ final class TripController extends AbstractController
             5=>"nbCredit",
             6=>"nbPlaceRemaining"
         ];
+        // Suppression des champs non modifiables
+        $dataRequest = array_filter(
+            $dataRequest,
+            fn($key) => in_array($key, $champsModifiables, true),
+            ARRAY_FILTER_USE_KEY
+        );
+
         //S'il y a plus de participants que de places à renseigner et qu'on veut modifier le nombre de places restantes, on ne peut rien modifier.
         if (array_key_exists('nbPlaceRemaining', $dataRequest) && count($users) > $dataRequest['nbPlaceRemaining'])
         {
@@ -284,32 +404,33 @@ final class TripController extends AbstractController
             goto retour;
         }
 
-        //Si la clé de la requête existe en valeur dans $champsModifiables, on fait la modification
-        foreach ($dataRequest as $key => $value) {
-            if (in_array($key, $champsModifiables)) {
-                $setter = 'set' . ucfirst($key);
-                if (method_exists($trip, $setter)) {
-                    $reflectionMethod = new ReflectionMethod($trip, $setter);
-                    $parameters = $reflectionMethod->getParameters();
 
-                    if (!empty($parameters)) {
-                        $parameterType = $parameters[0]->getType();
-                        if ($parameterType && !$parameterType->isBuiltin()) {
-                            $className = $parameterType->getName();
-                            if (class_exists($className)) {
-                                $value = $this->manager->getRepository($className)->find($value);
-                                if (!$value) {
-                                    throw new InvalidArgumentException("L'entité {" . $className . "} avec l'ID spécifié est introuvable.");
-                                }
-                            }
+        //Mise à jour des champs
+        foreach ($dataRequest as $key => $value) {
+            $setter = 'set' . ucfirst($key);
+            if (method_exists($trip, $setter)) {
+                if ($key === 'startingAt') {
+                    try {
+                        $value = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value);
+                        if (!$value) {
+                            throw new InvalidArgumentException('Le format de la date est invalide. Utilisez "Y-m-d H:i:s".');
                         }
+                    } catch (Exception $e) {
+                        return new JsonResponse(['error' => true, 'message' => 'Erreur lors de la conversion de la date : ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
                     }
-                    $trip->$setter($value);
+                } elseif ($key === 'vehicle') {
+                    $vehicle = $this->manager->getRepository(Vehicle::class)->find($value);
+                    if (!$vehicle) {
+                        return new JsonResponse(['error' => true, 'message' => 'Le véhicule spécifié est introuvable.'], Response::HTTP_BAD_REQUEST);
+                    }
+                    $value = $vehicle;
                 }
+                $trip->$setter($value);
             }
         }
+
         //Si on a changé le véhicule, on envoie un mail
-        if ($trip->getVehicle()->getId() !== $originalVehicleId)
+        if ($dataRequest["vehicle"] !== $originalVehicleId)
         {
             //Envoi du mail type changeTripVehicle à tous les participants
             foreach ($users as $userForMailing) {
@@ -319,17 +440,8 @@ final class TripController extends AbstractController
                     "model" => $trip->getVehicle()->getModel(),
                     "color" => $trip->getVehicle()->getColor()
                 ];
-
                 $this->mailService->sendEmail($user->getEmail(), 'changeTripVehicle', $strToReplace);
-
             }
-
-            $returnMessage = [
-                "error" => false,
-                "message" => "Véhicule modifié avec succès",
-                "httpStatus" => Response::HTTP_OK
-            ];
-            goto retour;
         }
 
         $returnMessage = [
@@ -339,6 +451,7 @@ final class TripController extends AbstractController
         ];
 
         retour:
+        $trip->setUpdatedAt(new DateTimeImmutable());
         $this->manager->flush();
 
         //S'il y a des participants, on ajoute le count($users) pour MongoDB

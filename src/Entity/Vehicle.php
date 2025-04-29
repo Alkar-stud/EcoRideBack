@@ -17,27 +17,27 @@ class Vehicle
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?string $brand = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?string $model = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?string $color = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?string $registration = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     private ?DateTimeInterface $registrationFirstDate = null;
 
     #[ORM\Column]
@@ -45,7 +45,7 @@ class Vehicle
     private ?int $nbPlace = null;
 
     #[ORM\ManyToOne]
-    #[Groups(['vehicle_read'])]
+    #[Groups(['vehicle_read', 'trip_read'])]
     #[ORM\JoinColumn(nullable: false)]
     private ?Energy $energy = null;
 

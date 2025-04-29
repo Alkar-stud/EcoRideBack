@@ -15,74 +15,74 @@ class Trip
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
+	#[Groups(['trip_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
+	#[Groups(['trip_read'])]
     private ?string $startingAddress = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
+	#[Groups(['trip_read'])]
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
-    #[Groups(['user_read', 'trip_detail', 'notice_read'])]
+	#[Groups(['trip_read'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
-    #[Groups(['user_read', 'trip_detail'])]
+	#[Groups(['trip_read'])]
     private ?int $duration = null;
 
     #[ORM\Column]
-    #[Groups(['user_read', 'trip_detail'])]
+	#[Groups(['trip_read'])]
     private ?int $nbCredit = null;
 
     #[ORM\Column]
-    #[Groups(['user_read', 'trip_detail'])]
+	#[Groups(['trip_read'])]
     private ?int $nbPlaceRemaining = null;
+
+    #[ORM\Column(nullable: true)]
+	#[Groups(['trip_detail'])]
+    private ?\DateTimeImmutable $actualDepartureAt = null;
+
+    #[ORM\Column(nullable: true)]
+	#[Groups(['trip_detail'])]
+    private ?\DateTimeImmutable $ArrivalAt = null;
+
+    #[ORM\Column]
+	#[Groups(['trip_read'])]
+    private ?DateTimeImmutable $createdAt = null;
+
+    #[ORM\Column(nullable: true)]
+	#[Groups(['trip_read'])]
+    private ?DateTimeImmutable $UpdatedAt = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['user_read', 'trip_detail'])]
+	#[Groups(['trip_read'])]
     private ?TripStatus $status = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['trip_detail', 'notice_read'])]
     private ?User $owner = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['user_read', 'trip_detail'])]
+    #[Groups(['trip_read'])]
     private ?Vehicle $vehicle = null;
 
     /**
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'tripsUsers')]
-    #[Groups(['trip_detail'])]
     private Collection $User;
-
-    #[ORM\Column]
-    private ?DateTimeImmutable $createdAt = null;
-
-    #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $UpdatedAt = null;
 
     /**
      * @var Collection<int, Notice>
      */
     #[ORM\OneToMany(targetEntity: Notice::class, mappedBy: 'relatedFor')]
     private Collection $noticesDriver;
-
-    #[ORM\Column(nullable: true)]
-    #[Groups(['trip_detail', 'notice_detail'])]
-    private ?\DateTimeImmutable $actualDepartureAt = null;
-
-    #[ORM\Column(nullable: true)]
-    #[Groups(['trip_detail', 'notice_detail'])]
-    private ?\DateTimeImmutable $ArrivalAt = null;
 
     public function __construct()
     {

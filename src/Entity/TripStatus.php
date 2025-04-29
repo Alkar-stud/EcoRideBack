@@ -15,11 +15,11 @@ class TripStatus
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['trip_status_read'])]
+    #[Groups(['trip_status_read', 'trip_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['trip_status_read', 'trip_detail'])]
+    #[Groups(['trip_status_read', 'trip_read'])]
     private ?string $libelle = null;
 
     #[ORM\Column(length: 20)]
