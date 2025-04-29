@@ -24,7 +24,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 
 #[Route('/api/trip/status', name: 'app_api_trip_status_')]
-#[OA\Tag(name: 'TripStatus')]
+#[OA\Tag(name: 'Trip')]
 final class TripStatusController extends AbstractController
 {
     public function __construct(

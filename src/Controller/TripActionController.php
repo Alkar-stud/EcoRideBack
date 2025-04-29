@@ -9,6 +9,7 @@ use App\Service\MailService;
 use App\Service\TripMongoService;
 use App\Service\TripService;
 use DateTimeImmutable;
+use OpenApi\Attributes as OA;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;

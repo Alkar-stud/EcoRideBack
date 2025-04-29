@@ -1,0 +1,20 @@
+version: '3.3'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_ecoride
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD} # Utilise la variable d'environnement DB_PASSWORD
+      MYSQL_DATABASE: ${DB_NAME}         # Utilise la variable d'environnement DB_NAME
+      MYSQL_USER: ${DB_USER}             # Utilise la variable d'environnement DB_USER
+      MYSQL_PASSWORD: ${DB_PASSWORD}     # Utilise la variable d'environnement DB_PASSWORD
+    ports:
+      - "3307:3306" # Expose le port MySQL
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro # Script d'initialisation (optionnel)
+
+volumes:
+  mysql_data:
