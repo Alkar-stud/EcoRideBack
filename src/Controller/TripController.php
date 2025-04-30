@@ -13,6 +13,7 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use InvalidArgumentException;
+use Nelmio\ApiDocBundle\Attribute\Areas;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes\MediaType;
 use OpenApi\Attributes\Property;
@@ -32,6 +33,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/trip', name: 'app_api_trip_')]
 #[OA\Tag(name: 'Trip')]
+#[Areas(["default"])]
 final class TripController extends AbstractController
 {
 
@@ -56,13 +58,13 @@ final class TripController extends AbstractController
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
-                    type: "string",
-                    example: "Adresse de départ"
+                    type: "json",
+                    example: "{\"rue\":\"nom de la rue\",\"ville\":\"REIMS\"}"
                 ),
                     new Property(
                         property: "arrivalAddress",
-                        type: "string",
-                        example: "Adresse d'arrivée"
+                        type: "json",
+                        example: "{\"rue\":\"nom de la rue\",\"ville\":\"PARIS\"}"
                     ),
                     new Property(
                         property: "startingAt",
@@ -113,8 +115,8 @@ final class TripController extends AbstractController
             return new JsonResponse('Un véhicule vous appartenant est obligatoire', Response::HTTP_BAD_REQUEST);
         }
         $trip->setVehicle($this->tripService->getTripVehicle($data['vehicle'], $user));
-        //ajout Owner = CurrentUser à Trip
-        $trip->setOwner($user);
+        //ajout Driver = CurrentUser à Trip
+        $trip->setDriver($user);
         //ajout Status correspondant au statut par défaut
         $trip->setStatus($this->tripService->getDefaultStatus());
         //Ajout durée du voyage
@@ -139,13 +141,16 @@ final class TripController extends AbstractController
             'nbPlaceRemaining' => $trip->getNbPlaceRemaining(),
             'nbParticipant' => 0,
             // Données utilisateur
-            'owner' => [
+            'driver' => [
                 'pseudo' => $user->getPseudo(),
                 'photo' => $user->getPhoto(),
                 'grade' => $user->getGrade(),
             ],
             // Données véhicule
             'vehicle' => [
+                'brand' => $trip->getVehicle()->getBrand(),
+                'model' => $trip->getVehicle()->getModel(),
+                'color' => $trip->getVehicle()->getColor(),
                 'energy' => $trip->getVehicle()->getEnergy()?->getLibelle(),
                 'isEco' => $trip->getVehicle()->getEnergy()?->isEco(),
             ],
@@ -170,6 +175,15 @@ final class TripController extends AbstractController
     }
 
     #[Route('/list/{state}', name: 'showAllOwner', methods: 'GET')]
+    #[OA\Get(
+        path:"/api/trip/list/{state}",
+        summary:"Liste les covoiturages du User selon leur état.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Covoiturages trouvés avec succès',
+        content: new Model(type: Trip::class, groups: ['trip_read'])
+    )]
     public function showAllOwner(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
         $possibleCodeStatus = $this->tripService->getPossibleStatus();
@@ -188,37 +202,16 @@ final class TripController extends AbstractController
         if ($state === 'all')
         {
             $trips = $this->repository->findBy(
-                ['owner' => $user->getId()],
+                ['driver' => $user->getId()],
                 ['startingAt' => 'ASC'],
                 $limit,
                 ($page - 1) * $limit
             );
         }
-        //Si c'est 'coming' on va chercher dans mongoDB
-        elseif ($state == 'coming')
-        {
-            /**
-             * Récupère tous les voyages depuis MongoDB pour l'utilisateur connecté.
-             */
-            try {
-                // Appel de la nouvelle méthode du service MongoDB
-                $tripsData = $this->tripMongoService->findByUserId($user->getId(), $page, $limit);
-
-                if (empty($tripsData)) {
-                    return new JsonResponse(['message' => 'No trips found in MongoDB for this user.'], Response::HTTP_NOT_FOUND);
-                }
-
-                return new JsonResponse($tripsData, Response::HTTP_OK);
-
-            } catch (Exception $e) {
-                return new JsonResponse(['error' => 'An error occurred while fetching trips from MongoDB: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
-            }
-
-        }
         else
         {
             $trips = $this->repository->findBy(
-                ['owner' => $user->getId(), 'status' => $possibleCodeStatus[$state]],
+                ['driver' => $user->getId(), 'status' => $possibleCodeStatus[$state]],
                 ['startingAt' => 'ASC'],
                 $limit,
                 ($page - 1) * $limit
@@ -229,18 +222,76 @@ final class TripController extends AbstractController
             $responseData = $this->serializer->serialize(
                 $trips,
                 'json',
-                ['groups' => ['trip_detail']]
+                ['groups' => ['trip_read', 'trip_detail']]
             );
             return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
-        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage pour cet utilisateur.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état pour cet utilisateur.'], Response::HTTP_NOT_FOUND);
+    }
+
+    #[Route('/guest/{id}', name: 'show_guest', methods: 'GET')]
+    #[OA\Get(
+        path:"/api/trip/guest/{id}",
+        summary:"Récupérer un covoiturage avec son ID.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Covoiturage trouvé avec succès',
+        content: new Model(type: Trip::class, groups: ['trip_read', 'trip_detail'])
+    )]
+    public function showByIdToGuest(int $id): JsonResponse
+    {
+        //Pour le public, il faut aller chercher dans mongoDB
+        $trip = $this->tripMongoService->findById($id);
+
+        if (!$trip) {
+            return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
+        }
+
+        return new JsonResponse(
+            [
+                'id' => $id,
+                'startingAddress' => $trip['startingAddress'],
+                'arrivalAddress' => $trip['arrivalAddress'],
+                'startingAt' => $trip['startingAt'],
+                'duration' => $trip['duration'],
+                'nbCredit' => $trip['nbCredit'],
+                'nbPlaceRemaining' => $trip['nbPlaceRemaining'],
+                'nbParticipant' => $trip['nbParticipant'],
+                'driver' => [
+                    'pseudo' => $trip['driver']['pseudo'],
+                    'photo' => $trip['driver']['photo'],
+                    'grade' => $trip['driver']['grade']
+                ],
+                'vehicle' => [
+                    'brand' => $trip['vehicle']['brand'],
+                    'model' => $trip['vehicle']['model'],
+                    'color' => $trip['vehicle']['color'],
+                    'energy' => [
+                        'energy' => $trip['vehicle']['energy'],
+                        'isEco' => $trip['vehicle']['isEco']
+                    ]
+                ],
+
+            ],
+            Response::HTTP_CREATED
+        );
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
-    public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
+    #[OA\Get(
+        path:"/api/trip/{id}",
+        summary:"Récupérer un covoiturage du User avec son ID.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Covoiturage trouvé avec succès',
+        content: new Model(type: Trip::class, groups: ['trip_read'])
+    )]
+    public function showByIdToOwner(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
-        $trip = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
+        $trip = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
 
         if (!$trip) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
@@ -249,7 +300,7 @@ final class TripController extends AbstractController
         $responseData = $this->serializer->serialize(
             $trip,
             'json',
-            ['groups' => ['trip_detail']]
+            ['groups' => ['trip_read']]
         );
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
@@ -267,13 +318,13 @@ final class TripController extends AbstractController
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
-                    type: "string",
-                    example: "Adresse de départ"
+                    type: "json",
+                    example: "{\"rue\":\"nom de la rue\",\"ville\":\"REIMS\"}"
                 ),
                     new Property(
                         property: "arrivalAddress",
-                        type: "string",
-                        example: "Adresse d'arrivée"
+                        type: "json",
+                        example: "{\"rue\":\"nom de la rue\",\"ville\":\"PARIS\"}"
                     ),
                     new Property(
                         property: "startingAt",
@@ -319,7 +370,7 @@ final class TripController extends AbstractController
     )]
     public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
     {
-        $trip = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
+        $trip = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
         //Si le covoiturage n'existe pas
         if (!$trip) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);

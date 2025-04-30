@@ -14,15 +14,15 @@ class Preferences
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['preferences_user', 'user_read', 'trip_detail'])]
+    #[Groups(['preferences_user', 'user_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['preferences_user', 'user_read', 'trip_detail'])]
+    #[Groups(['preferences_user', 'user_read'])]
     private ?string $libelle = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Groups(['preferences_user', 'user_read', 'trip_detail'])]
+    #[Groups(['preferences_user', 'user_read'])]
     private ?string $description = null;
 
     #[ORM\ManyToOne(inversedBy: 'preferences')]

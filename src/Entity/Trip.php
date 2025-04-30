@@ -65,7 +65,7 @@ class Trip
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
-    private ?User $owner = null;
+    private ?User $driver = null;
 
     #[ORM\ManyToOne(inversedBy: 'trips')]
     #[ORM\JoinColumn(nullable: false)]
@@ -76,6 +76,7 @@ class Trip
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'tripsUsers')]
+	#[Groups(['trip_read'])]
     private Collection $User;
 
     /**
@@ -178,14 +179,14 @@ class Trip
         return $this;
     }
 
-    public function getOwner(): ?User
+    public function getDriver(): ?User
     {
-        return $this->owner;
+        return $this->driver;
     }
 
-    public function setOwner(?User $owner): static
+    public function setDriver(?User $driver): static
     {
-        $this->owner = $owner;
+        $this->driver = $driver;
 
         return $this;
     }
