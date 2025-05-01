@@ -168,7 +168,7 @@ final class TripActionController extends AbstractController
     #[Route('/{tripId}/{action}', name: 'action', methods: ['PUT'])]
     #[OA\Put(
         path:"/api/trip/{tripId}/{action}",
-        summary:"Changement d'état d'un covoiturage - modifications d'états possibles pour le chauffeur : cancel|start|stop.Pour le passager : badxp. Si tout s'est bien passé, c'est la validation de l'avis, note par EcoRide qui validera le trajet.",
+        summary:"Changement d'état d'un covoiturage - modifications d'états possibles pour le chauffeur : cancel|start|stop.Pour le passager : badxp. Si tout s'est bien passé, c'est la validation du dernier passager qui clôturera le covoiturage.",
     )]
     #[OA\Response(
         response: 200,
@@ -220,7 +220,6 @@ final class TripActionController extends AbstractController
                 'email' => $tripUser->getEmail(),
             ];
         })->toArray();
-
 
 
         // Supprimer le covoiturage de MongoDB car une fois démarré les visiteurs ne doivent plus le trouver ailleurs que dans leur espace utilisateur
