@@ -410,7 +410,7 @@ final class TripController extends AbstractController
         //Modification impossible si des participants sont inscrits, sauf si on augmente le nombre de places
         /* Si participants == 0 → on peut modifier (presque) tout
          * Si participants > 0 →
-         *   → Si nbPlaceRemaining >= count($users) => on peut modifier ce champ et vehicle.
+         * → Si nbPlaceRemaining >= count($users) => on peut modifier ce champ et vehicle.
          */
         $champsModifiables = [
             0=>"vehicle",
