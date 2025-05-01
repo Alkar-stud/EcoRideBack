@@ -58,13 +58,13 @@ final class TripController extends AbstractController
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
-                    type: "json",
-                    example: "{\"rue\":\"nom de la rue\",\"ville\":\"REIMS\"}"
+                    type: "string",
+                    example: "rue|VILLE"
                 ),
                     new Property(
                         property: "arrivalAddress",
-                        type: "json",
-                        example: "{\"rue\":\"nom de la rue\",\"ville\":\"PARIS\"}"
+                        type: "string",
+                        example: "rue|VILLE"
                     ),
                     new Property(
                         property: "startingAt",
@@ -125,6 +125,15 @@ final class TripController extends AbstractController
         }
         $trip->setDuration($data['duration']);
 
+        //explode et json_encode des adresses
+        $startingAddress = explode('|', $trip->getStartingAddress());
+        $arrivalAddress = explode('|', $trip->getArrivalAddress());
+        //mise en majuscule des villes
+        $startingAddress[1] = mb_convert_case($startingAddress[1], MB_CASE_UPPER, "UTF-8");
+        $arrivalAddress[1] = mb_convert_case($arrivalAddress[1], MB_CASE_UPPER, "UTF-8");
+        //Update dans $trip
+        $trip->setStartingAddress(json_encode($startingAddress, true));
+        $trip->setArrivalAddress(json_encode($arrivalAddress, true));
 
         $trip->setCreatedAt(new DateTimeImmutable());
         $this->manager->persist($trip);
@@ -318,13 +327,13 @@ final class TripController extends AbstractController
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
-                    type: "json",
-                    example: "{\"rue\":\"nom de la rue\",\"ville\":\"REIMS\"}"
+                    type: "string",
+                    example: "rue|VILLE"
                 ),
                     new Property(
                         property: "arrivalAddress",
-                        type: "json",
-                        example: "{\"rue\":\"nom de la rue\",\"ville\":\"PARIS\"}"
+                        type: "string",
+                        example: "rue|VILLE"
                     ),
                     new Property(
                         property: "startingAt",
@@ -455,7 +464,6 @@ final class TripController extends AbstractController
             goto retour;
         }
 
-
         //Mise à jour des champs
         foreach ($dataRequest as $key => $value) {
             $setter = 'set' . ucfirst($key);
@@ -475,6 +483,13 @@ final class TripController extends AbstractController
                         return new JsonResponse(['error' => true, 'message' => 'Le véhicule spécifié est introuvable.'], Response::HTTP_BAD_REQUEST);
                     }
                     $value = $vehicle;
+                } elseif ($key === 'startingAddress' || $key === 'arrivalAddress') {
+                    //explode et json_encode des adresses
+                    $address = explode('|', $value);
+                    //mise en majuscule des villes
+                    $address[1] = mb_convert_case($address[1], MB_CASE_UPPER, "UTF-8");
+                    //Update dans $trip
+                    $value = json_encode($address, true);
                 }
                 $trip->$setter($value);
             }
@@ -502,6 +517,7 @@ final class TripController extends AbstractController
         ];
 
         retour:
+
         $trip->setUpdatedAt(new DateTimeImmutable());
         $this->manager->flush();
 
