@@ -166,6 +166,18 @@ final class TripActionController extends AbstractController
      * @throws TransportExceptionInterface
      */
     #[Route('/{tripId}/{action}', name: 'action', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/trip/{tripId}/{action}",
+        summary:"Changement d'état d'un covoiturage - modifications d'états possibles pour le chauffeur : cancel|start|stop.Pour le passager : badxp. Si tout s'est bien passé, c'est la validation de l'avis, note par EcoRide qui validera le trajet.",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Changement effectué avec succès.'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
     public function action(#[CurrentUser] ?User $user, int $tripId, string $action): JsonResponse
     {
         //Est-ce que cette action est possible
