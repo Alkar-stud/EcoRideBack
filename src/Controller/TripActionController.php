@@ -48,8 +48,7 @@ final class TripActionController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Participant ajouté avec succès',
-        content: new Model(type: Trip::class, groups: ['trip_read'])
+        description: 'Vous avez été ajouté à ce covoiturage'
     )]
     #[OA\Response(
         response: 400,
@@ -57,7 +56,7 @@ final class TripActionController extends AbstractController
     )]
     #[OA\Response(
         response: 402,
-        description: 'Vous \'avez pas assez de credit pour participer à ce covoiturage.'
+        description: 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'
     )]
     public function addUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
     {
@@ -81,7 +80,6 @@ final class TripActionController extends AbstractController
             $trip->setNbPlaceRemaining($trip->getNbPlaceRemaining() - 1);
             $trip->addUser($user);
             $this->manager->flush();
-            return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
 
             //On met à jour nbPlaceRemaining et nbParticipant dans MongoDB
             $users = $trip->getUser();
@@ -96,22 +94,30 @@ final class TripActionController extends AbstractController
                 'nbCredit' => $trip->getNbCredit(),
                 'nbPlaceRemaining' => $trip->getNbPlaceRemaining(),
                 'nbParticipant' => $nbParticipant,
-                'user' => [
-                    'pseudo' => $user->getPseudo(),
-                    'photo' => $user->getPhoto(),
-                    'grade' => $user->getGrade(),
-                ],
                 'vehicle' => [
                     'energy' => $trip->getVehicle()?->getEnergy()?->getLibelle(),
                     'isEco' => $trip->getVehicle()?->getEnergy()?->isEco(),
                 ],
             ]);
 
+            return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
         }
         return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
     }
 
     #[Route('/{tripId}/removeUser', name: 'removeUser', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/trip/{tripId}/removeUser",
+        summary:"Retrait d'un participant",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Vous avez été retiré de ce covoiturage'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
     public function removeUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
     {
         //Récupération du covoiturage
@@ -128,11 +134,29 @@ final class TripActionController extends AbstractController
             //On recrédite le user
             $user->setCredits($user->getCredits() + $trip->getNbCredit());
             //On met à jour le nombre de places restantes
-            $trip->setNbPlaceRemaining($trip->getNbPlaceRemaining() - 1);
-            //on met à jour dans MongoDB
-            
+            $trip->setNbPlaceRemaining($trip->getNbPlaceRemaining() + 1);
             $trip->removeUser($user);
             $this->manager->flush();
+
+            //On met à jour nbPlaceRemaining et nbParticipant dans MongoDB
+            $users = $trip->getUser();
+            count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
+            //Modification dans mongoDB
+            $this->tripMongoService->update($trip->getId(), [
+                'id_covoiturage' => $trip->getId(),
+                'startingAddress' => $trip->getStartingAddress(),
+                'arrivalAddress' => $trip->getArrivalAddress(),
+                'startingAt' => $trip->getStartingAt(),
+                'duration' => $trip->getDuration(),
+                'nbCredit' => $trip->getNbCredit(),
+                'nbPlaceRemaining' => $trip->getNbPlaceRemaining(),
+                'nbParticipant' => $nbParticipant,
+                'vehicle' => [
+                    'energy' => $trip->getVehicle()?->getEnergy()?->getLibelle(),
+                    'isEco' => $trip->getVehicle()?->getEnergy()?->isEco(),
+                ],
+            ]);
+
             return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
         }
         return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
