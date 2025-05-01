@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Trip;
 use App\Entity\TripStatus;
 use App\Entity\User;
 use App\Repository\TripRepository;
@@ -9,8 +10,14 @@ use App\Service\MailService;
 use App\Service\TripMongoService;
 use App\Service\TripService;
 use DateTimeImmutable;
+use Nelmio\ApiDocBundle\Attribute\Areas;
+use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes\MediaType;
+use OpenApi\Attributes\Property;
+use OpenApi\Attributes\RequestBody;
+use OpenApi\Attributes\Schema;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,6 +26,8 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 #[Route('/api/trip', name: 'app_api_trip_')]
+#[OA\Tag(name: 'TripAction')]
+#[Areas(["default"])]
 final class TripActionController extends AbstractController
 {
     public function __construct(
@@ -32,6 +41,24 @@ final class TripActionController extends AbstractController
     }
 
     #[Route('/{tripId}/addUser', name: 'addUser', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/trip/{tripId}/addUser",
+        summary:"Ajout d'un participant",
+
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Participant ajouté avec succès',
+        content: new Model(type: Trip::class, groups: ['trip_read'])
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
+    #[OA\Response(
+        response: 402,
+        description: 'Vous \'avez pas assez de credit pour participer à ce covoiturage.'
+    )]
     public function addUser(#[CurrentUser] ?User $user, int $tripId): JsonResponse
     {
         //Récupération du covoiturage
@@ -50,9 +77,36 @@ final class TripActionController extends AbstractController
                 return new JsonResponse(['message' => 'Vous \'avez pas assez de credit pour participer à ce covoiturage.'], Response::HTTP_PAYMENT_REQUIRED);
             }
             $user->setCredits($user->getCredits() - $trip->getNbCredit());
+            //On met à jour le nombre de places restantes
+            $trip->setNbPlaceRemaining($trip->getNbPlaceRemaining() - 1);
             $trip->addUser($user);
             $this->manager->flush();
             return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
+
+            //On met à jour nbPlaceRemaining et nbParticipant dans MongoDB
+            $users = $trip->getUser();
+            count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
+            //Modification dans mongoDB
+            $this->tripMongoService->update($trip->getId(), [
+                'id_covoiturage' => $trip->getId(),
+                'startingAddress' => $trip->getStartingAddress(),
+                'arrivalAddress' => $trip->getArrivalAddress(),
+                'startingAt' => $trip->getStartingAt(),
+                'duration' => $trip->getDuration(),
+                'nbCredit' => $trip->getNbCredit(),
+                'nbPlaceRemaining' => $trip->getNbPlaceRemaining(),
+                'nbParticipant' => $nbParticipant,
+                'user' => [
+                    'pseudo' => $user->getPseudo(),
+                    'photo' => $user->getPhoto(),
+                    'grade' => $user->getGrade(),
+                ],
+                'vehicle' => [
+                    'energy' => $trip->getVehicle()?->getEnergy()?->getLibelle(),
+                    'isEco' => $trip->getVehicle()?->getEnergy()?->isEco(),
+                ],
+            ]);
+
         }
         return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
     }
@@ -73,6 +127,10 @@ final class TripActionController extends AbstractController
             }
             //On recrédite le user
             $user->setCredits($user->getCredits() + $trip->getNbCredit());
+            //On met à jour le nombre de places restantes
+            $trip->setNbPlaceRemaining($trip->getNbPlaceRemaining() - 1);
+            //on met à jour dans MongoDB
+            
             $trip->removeUser($user);
             $this->manager->flush();
             return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
