@@ -28,7 +28,6 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[Route('/api', name: 'app_api_')]
 #[OA\Tag(name: 'User')]
@@ -36,8 +35,9 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 final class SecurityController extends AbstractController
 {
     public function __construct(
-        private readonly EntityManagerInterface $manager,
-        private readonly SerializerInterface    $serializer
+        private readonly EntityManagerInterface      $manager,
+        private readonly SerializerInterface         $serializer,
+        private readonly UserPasswordHasherInterface $passwordHasher,
     )
     {
     }
@@ -200,7 +200,7 @@ final class SecurityController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'User trouvé avec succès',
-        content: new Model(type: User::class, groups: ['user_read'])
+        content: new Model(type: User::class, groups: ['user_read', 'vehicle_read'])
     )]
     #[OA\Response(
         response: 404,
@@ -215,7 +215,7 @@ final class SecurityController extends AbstractController
         $responseData = $this->serializer->serialize(
             $user,
             'json',
-            ['groups' => ['user_read']]
+            ['groups' => ['user_read', 'vehicle_read']]
         );
 
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
@@ -267,7 +267,7 @@ final class SecurityController extends AbstractController
     public function edit(
         #[CurrentUser] ?User $user,
         Request $request,
-        SluggerInterface $slugger,
+        UserPasswordHasherInterface $passwordHasher,
         #[Autowire('%kernel.project_dir%/public/uploads/photos')] string $photoDirectory
     ): JsonResponse
     {
@@ -292,6 +292,23 @@ final class SecurityController extends AbstractController
         $user->setIsActive($originalIsActive);
         // Empêcher la modification de l'email par le User
         $user->setEmail($originalEmail);
+
+        //Si deletePhoto === true, on supprime le fichier $user->getPhoto() dans uploads/photo et $user->setPhoto() = null;
+        // Récupération des données de la requête.
+        $data = json_decode($request->getContent(), true);
+
+        // Vérification si deletePhoto est présent dans la requête et est true
+        if (isset($data['deletePhoto']) && $data['deletePhoto'] === true) {
+            $oldPhotoPath = $photoDirectory . '/' . $user->getPhoto();
+            if ($user->getPhoto() && file_exists($oldPhotoPath) && is_writable($oldPhotoPath)) {
+                @unlink($oldPhotoPath);
+                $user->setPhoto(null);
+            }
+        }
+
+        if (isset($request->toArray()['password'])) {
+            $user->setPassword($this->passwordHasher->hashPassword($user, $user->getPassword()));
+        }
 
         $user->setUpdatedAt(new DateTimeImmutable());
 

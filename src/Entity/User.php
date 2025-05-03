@@ -101,7 +101,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Trip>
      */
     #[ORM\OneToMany(targetEntity: Trip::class, mappedBy: 'driver')]
-    #[Groups(['user_read'])]
     private Collection $trips;
 
     /**
