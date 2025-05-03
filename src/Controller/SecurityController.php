@@ -7,6 +7,7 @@ use App\Entity\Preferences;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use GdImage;
 use Nelmio\ApiDocBundle\Attribute\Areas;
 use OpenApi\Attributes as OA;
 use OpenApi\Attributes\RequestBody;
@@ -14,7 +15,10 @@ use OpenApi\Attributes\Property;
 use OpenApi\Attributes\MediaType;
 use OpenApi\Attributes\Schema;
 use Nelmio\ApiDocBundle\Attribute\Model;
+use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,6 +28,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[Route('/api', name: 'app_api_')]
 #[OA\Tag(name: 'User')]
@@ -231,7 +236,7 @@ final class SecurityController extends AbstractController
                     new Property(
                         property: "photo",
                         type: "string",
-                        example: "Nouvelle photo"
+                        example: "Nouvelle photo (jpg, png ou webp, max 100px*100px)"
                     ),
                     new Property(
                         property: "isDriver",
@@ -252,10 +257,19 @@ final class SecurityController extends AbstractController
         content: new Model(type: User::class, groups: ['user_read'])
     )]
     #[OA\Response(
+        response: 400,
+        description: 'Erreur dans l\'envoi des données'
+    )]
+    #[OA\Response(
         response: 404,
         description: 'User non trouvé'
     )]
-    public function edit(#[CurrentUser] ?User $user, Request $request): JsonResponse
+    public function edit(
+        #[CurrentUser] ?User $user,
+        Request $request,
+        SluggerInterface $slugger,
+        #[Autowire('%kernel.project_dir%/public/uploads/photos')] string $photoDirectory
+    ): JsonResponse
     {
         if (null === $user) {
             return new JsonResponse(null, Response::HTTP_UNAUTHORIZED);
@@ -285,6 +299,9 @@ final class SecurityController extends AbstractController
         if (!$this->isGranted('ROLE_ADD_CREDIT')) {
             $user->setCredits($originalCredits);
         }
+        //Vérification de l'intégrité de l'upload de la photo et on lui met comme nom un slug.
+
+
         $user->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
@@ -297,6 +314,124 @@ final class SecurityController extends AbstractController
 
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
+
+    /**
+     * @throws RandomException
+     */
+    #[Route('/account/upload', name: 'account_upload', methods: 'POST')]
+    #[OA\Post(
+        path:"/api/account/upload",
+        summary:"Envoyer la photo de profil",
+        requestBody :new RequestBody(
+            description: "Données de l'utilisateur à modifier",
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "photo",
+                    type: "file",
+                    example: "image.jpg"
+                    ),
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Image envoyé avec succès',
+        content: new Model(type: User::class, groups: ['user_read'])
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Erreur dans l\'envoi des données'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'User non trouvé'
+    )]
+    public function upload(
+        #[CurrentUser] ?User $user,
+        Request $request,
+        #[Autowire('%kernel.project_dir%/public/uploads/photos')] string $photoDirectory
+    ): JsonResponse {
+        if ($user === null) {
+            return new JsonResponse(['error' => true, 'message' => 'Utilisateur non authentifié'], Response::HTTP_UNAUTHORIZED);
+        }
+        if (!$request->files->has('photo')) {
+            return new JsonResponse(['error' => true, 'message' => 'Aucun fichier photo trouvé'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $photoFile = $request->files->get('photo');
+        $newFilename = bin2hex(random_bytes(16)) . '.' . $photoFile->guessExtension();
+
+        // Vérification de l'extension
+        $allowedExtensions = ["jpeg", "jpg", "png", "webp"];
+        if (!in_array($photoFile->guessExtension(), $allowedExtensions)) {
+            return new JsonResponse(['error' => true, 'message' => 'L\'extension de la photo est incorrecte'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Vérification de la taille
+        if ($photoFile->getSize() > 2000000) {
+            return new JsonResponse(['error' => true, 'message' => 'La photo est trop lourde'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Vérification des dimensions
+        $image = getimagesize($photoFile->getPathname());
+        if ($image[0] > 100 || $image[1] > 100) {
+            try {
+                // On redimensionne la photo
+                $resizedImage = $this->resizeAvatar($photoFile);
+                $targetPath = $photoDirectory . '/' . $newFilename;
+
+                // Enregistrer l'image redimensionnée
+                switch ($photoFile->getMimeType()) {
+                    case 'image/jpeg':
+                        if (!@imagejpeg($resizedImage, $targetPath)) {
+                            throw new \Exception("Impossible d'écrire l'image JPEG");
+                        }
+                        break;
+                    case 'image/png':
+                        if (!@imagepng($resizedImage, $targetPath)) {
+                            throw new \Exception("Impossible d'écrire l'image PNG");
+                        }
+                        break;
+                    case 'image/webp':
+                        if (!@imagewebp($resizedImage, $targetPath)) {
+                            throw new \Exception("Impossible d'écrire l'image WebP");
+                        }
+                        break;
+                    default:
+                        throw new \Exception("Format d'image non pris en charge");
+                }
+
+                imagedestroy($resizedImage);
+
+                if ($user->getPhoto()) {
+                    $oldPhotoPath = $photoDirectory . '/' . $user->getPhoto();
+                    if (file_exists($oldPhotoPath) && is_writable($oldPhotoPath)) {
+                        @unlink($oldPhotoPath);
+                    }
+                }
+                // On met à jour l'utilisateur avec le nouveau nom de fichier
+                $user->setPhoto($newFilename);
+                $this->manager->flush();
+                return new JsonResponse(['success' => true, 'message' => 'Photo redimensionnée et uploadée avec succès'], Response::HTTP_OK);
+            } catch (\Exception $e) {
+                return new JsonResponse(['error' => true, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        // Déplacement de la nouvelle photo s'il n'y a pas de redimensionnement à faire
+        try {
+            $photoFile->move($photoDirectory, $newFilename);
+            $user->setPhoto($newFilename);
+            $this->manager->flush();
+        } catch (FileException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+
+        return new JsonResponse(['success' => true, 'message' => 'Photo uploadée avec succès'], Response::HTTP_OK);
+    }
+
+
+
 
     #[Route('/account', name: 'account_delete', methods: 'DELETE')]
     #[OA\Delete(
@@ -321,6 +456,42 @@ final class SecurityController extends AbstractController
         }
 
         return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+    }
+
+    private function resizeAvatar(mixed $photoFile): GdImage
+    {
+        // Vérification des dimensions de l'image
+        $imageInfo = getimagesize($photoFile->getPathname());
+        $originalWidth = $imageInfo[0];
+        $originalHeight = $imageInfo[1];
+
+        // Calcul des nouvelles dimensions en gardant le ratio
+        $newHeight = 100;
+        $newWidth = intval(($originalWidth / $originalHeight) * $newHeight);
+
+        // Chargement de l'image source
+        $source = match ($photoFile->getMimeType()) {
+            'image/jpeg' => imagecreatefromjpeg($photoFile->getPathname()),
+            'image/png' => imagecreatefrompng($photoFile->getPathname()),
+            'image/webp' => imagecreatefromwebp($photoFile->getPathname()),
+            default => throw new \InvalidArgumentException('Format d\'image non supporté'),
+        };
+
+        // Création de l'image redimensionnée
+        $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+
+        // Préservation de la transparence pour les PNG
+        if ($photoFile->getMimeType() === 'image/png') {
+            imagealphablending($resizedImage, false);
+            imagesavealpha($resizedImage, true);
+        }
+
+        imagecopyresampled($resizedImage, $source, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+
+        // Libération de la mémoire de l'image source
+        imagedestroy($source);
+
+        return $resizedImage;
     }
 
 }
