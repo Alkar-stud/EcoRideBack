@@ -449,7 +449,6 @@ final class SecurityController extends AbstractController
 
 
 
-
     #[Route('/account', name: 'account_delete', methods: 'DELETE')]
     #[OA\Delete(
         path:"/api/account",
@@ -466,6 +465,18 @@ final class SecurityController extends AbstractController
     public function delete(#[CurrentUser] ?User $user): JsonResponse
     {
         if ($user) {
+            //On supprime le fichier de l'image de profil s'il y en a une
+            if ($user->getPhoto()) {
+                $photoDirectory = $this->getParameter('kernel.project_dir') . '/public/uploads/photos';
+                $oldPhotoPath = $photoDirectory . '/' . $user->getPhoto();
+                if (file_exists($oldPhotoPath) && is_writable($oldPhotoPath)) {
+                    @unlink($oldPhotoPath);
+                }
+            }
+
+            // On supprime l'utilisateur
+
+
             $this->manager->remove($user);
             $this->manager->flush();
 
