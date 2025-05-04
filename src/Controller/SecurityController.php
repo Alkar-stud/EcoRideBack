@@ -475,8 +475,6 @@ final class SecurityController extends AbstractController
             }
 
             // On supprime l'utilisateur
-
-
             $this->manager->remove($user);
             $this->manager->flush();
 
