@@ -1,16 +1,20 @@
-FROM node:20
+FROM php:8.1-fpm
 
-# Crée le dossier de l'app
-WORKDIR /app
+# Installer les extensions PHP nécessaires
+RUN apt-get update && apt-get install -y \
+    libzip-dev zip unzip git libicu-dev libonig-dev libxml2-dev \
+    && docker-php-ext-install pdo_mysql intl opcache
 
-# Copie les fichiers de l'app
+# Installer Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Copier les fichiers de l'application
+WORKDIR /var/www/html
 COPY . .
 
-# Installe les dépendances
-RUN npm install
+# Définir les permissions
+RUN chown -R www-data:www-data /var/www/html
 
-# Expose le port (adapter si nécessaire)
-EXPOSE 8000
+# Commande par défaut
+CMD ["php", "-S", "0.0.0.0:80", "-t", "public"]
 
-# Commande pour démarrer l'app
-CMD ["server", "start"] 
