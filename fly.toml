@@ -1,0 +1,35 @@
+# fly.toml app configuration file generated for ecoride-db-wandering-butterfly-4438 on 2025-05-05T18:34:43+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'ecoride-db-wandering-butterfly-4438'
+primary_region = 'cdg'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  DATABASE_URL = 'mysql://ecoride:ePStl]LoOamt8dZ2@db.internal:3306/ecoride'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 8000
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+  [[services.tcp_checks]]
+    interval = '15s'
+    timeout = '2s'
+    grace_period = '5s'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
