@@ -1,36 +1,32 @@
-# fly.toml app configuration file generated for ecoride-db-wandering-butterfly-4438 on 2025-05-05T18:34:43+02:00
+# fly.toml app configuration file generated for ecoride-db-back-9511 on 2025-05-05T19:54:02+02:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'ecoride-db-wandering-butterfly-4438'
+app = 'ecoride-db-back-9511'
 primary_region = 'cdg'
 
 [build]
-  dockerfile = 'Dockerfile'
 
-[env]
-  DATABASE_URL = 'mysql://ecoride:ePStl]LoOamt8dZ2@db.internal:3306/ecoride'
-
-[[services]]
-  protocol = 'tcp'
+[http_service]
   internal_port = 8000
-
-  [[services.ports]]
-    port = 80
-    handlers = ['http']
-
-  [[services.ports]]
-    port = 443
-    handlers = ['tls', 'http']
-
-  [[services.tcp_checks]]
-    interval = '15s'
-    timeout = '2s'
-    grace_period = '5s'
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
 
+[env]
+  MYSQL_ROOT_PASSWORD = "rootpassword"
+  MYSQL_DATABASE = "ecoride"
+  MYSQL_USER = "ecoride"
+  MYSQL_PASSWORD = "ePStl]LoOamt8dZ2"
+
+[mounts]
+  source = "mysql_data"
+  destination = "/var/lib/mysql"

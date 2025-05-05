@@ -9,9 +9,8 @@ services:
       MYSQL_DATABASE: ecoride
       MYSQL_USER: ecoride
       MYSQL_PASSWORD: 'ePStl]LoOamt8dZ2'
-    # Exposer le port 3306 pour un usage local si nécessaire
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
 
@@ -19,10 +18,9 @@ services:
     build: .
     container_name: ecoride_symfony
     environment:
-      # Utiliser cette URL pour Fly.io
-      # DATABASE_URL: "mysql://ecoride:ePStl]LoOamt8dZ2@db.internal:3306/ecoride"
-      # Utilisez cette URL pour un usage local
-      DATABASE_URL: "mysql://ecoride:ePStl]LoOamt8dZ2@localhost:3306/ecoride"
+      APP_ENV: dev
+      DATABASE_URL: "mysql://ecoride:ePStl]LoOamt8dZ2@db:3306/ecoride" # Utilisation de "db" pour le réseau Docker
+      COMPOSER_MEMORY_LIMIT: -1
     depends_on:
       - db
 

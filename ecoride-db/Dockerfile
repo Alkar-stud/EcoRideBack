@@ -1,0 +1,10 @@
+FROM mysql:8
+
+ENV MYSQL_ROOT_PASSWORD=rootpassword
+ENV MYSQL_DATABASE=ecoride
+ENV MYSQL_USER=ecoride
+ENV MYSQL_PASSWORD='ePStl]LoOamt8dZ2'
+
+VOLUME /var/lib/mysql
+
+EXPOSE 3306
