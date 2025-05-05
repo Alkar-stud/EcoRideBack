@@ -4,7 +4,7 @@ FROM php:8.2-fpm
 RUN apt-get update && apt-get install -y \
     git unzip zip curl libicu-dev libonig-dev libxml2-dev \
     libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
-    libpq-dev libmcrypt-dev libxslt1-dev mariadb-client \
+    libpq-dev libxslt1-dev mariadb-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install intl pdo pdo_mysql zip opcache gd \
     && pecl install mongodb \
@@ -20,15 +20,20 @@ WORKDIR /var/www/html
 # Copier les fichiers du projet
 COPY . .
 
+# Vérifier les extensions PHP requises par Composer
+RUN composer check-platform-reqs || { \
+    echo "Certaines extensions PHP requises sont manquantes. Vérifiez votre configuration."; exit 1; }
+
 # Configurer Git pour accepter le répertoire comme sûr
 RUN git config --global --add safe.directory /var/www/html
 
 # Vérifier les permissions avant d'installer les dépendances PHP
 RUN chown -R www-data:www-data /var/www/html
 
-# Installer les dépendances PHP
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader || { \
-    echo "Échec de composer install. Vérifiez les dépendances ou les fichiers manquants."; exit 1; }
+# Installer les dépendances PHP avec des logs détaillés
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --verbose || { \
+    echo "Échec de composer install. Vérifiez les dépendances ou les fichiers manquants."; exit 1; } \
+    && composer clear-cache # Nettoyer le cache Composer pour réduire la taille de l'image
 
 # Droits pour le cache
 RUN chown -R www-data:www-data /var/www/html/var /var/www/html/vendor
