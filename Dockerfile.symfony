@@ -1,0 +1,41 @@
+# Dockerfile.symfony
+FROM php:8.2-fpm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    libicu-dev \
+    libpq-dev \
+    libzip-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    pkg-config \
+    libssl-dev \
+ && docker-php-ext-configure gd --with-freetype --with-jpeg \
+ && docker-php-ext-install intl pdo pdo_mysql zip opcache gd
+
+# Install PHP extensions via PECL
+RUN pecl install mongodb && docker-php-ext-enable mongodb
+
+# Install Composer
+env COMPOSER_HOME=/var/composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer
+
+WORKDIR /app
+COPY composer.json composer.lock ./
+# Run Composer as the current user to ensure /usr/bin/composer is in PATH
+# Ensure Composer is executable and in PATH
+RUN chmod +x /usr/bin/composer \
+ && php /usr/bin/composer install --no-dev --optimize-autoloader
+
+COPY . ./
+
+# Build assets if needed (npm/yarn)
+# RUN npm install && npm run build
+
+CMD ["php-fpm"]
+EXPOSE 9000

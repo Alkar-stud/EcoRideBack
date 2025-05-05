@@ -3,7 +3,7 @@ services:
     name: ecoride-back
     env: docker
     plan: free
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.symfony
     buildCommand: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
     startCommand: php bin/console server:run 0.0.0.0:80
     envVars:

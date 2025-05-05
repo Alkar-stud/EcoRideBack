@@ -1,0 +1,7 @@
+parameters:
+  env(MYSQL_HOST): 'mysql'
+  env(MYSQL_PORT): '3306'
+  env(MYSQL_DB):   'ecoride'
+  env(MYSQL_USER): 'ecoride'
+  env(MYSQL_PASS): 'ePStl]LoOamt8dZ2'
+  env(MONGODB_URI): '%env(resolve:MONGODB_URI)%'
