@@ -20,6 +20,12 @@ WORKDIR /var/www/html
 # Copier les fichiers du projet
 COPY . .
 
+# Vérifier les versions de PHP et Composer
+RUN php -v && composer -V
+
+# Afficher les extensions PHP activées
+RUN php -m
+
 # Vérifier les extensions PHP requises par Composer
 RUN composer check-platform-reqs || { \
     echo "Certaines extensions PHP requises sont manquantes. Vérifiez votre configuration."; exit 1; }
@@ -30,10 +36,11 @@ RUN git config --global --add safe.directory /var/www/html
 # Vérifier les permissions avant d'installer les dépendances PHP
 RUN chown -R www-data:www-data /var/www/html
 
-# Installer les dépendances PHP avec des logs détaillés
+# Installer les dépendances PHP avec des logs détaillés et capturer les erreurs
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --verbose || { \
-    echo "Échec de composer install. Vérifiez les dépendances ou les fichiers manquants."; exit 1; } \
-    && composer clear-cache # Nettoyer le cache Composer pour réduire la taille de l'image
+    echo "Échec de composer install. Voici les journaux détaillés :"; \
+    composer install --no-dev --verbose; \
+    exit 1; }
 
 # Droits pour le cache
 RUN chown -R www-data:www-data /var/www/html/var /var/www/html/vendor
