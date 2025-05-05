@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    build:
+      context: .
+      dockerfile: ./docker/mysql/Dockerfile # Ajuste le chemin si nécessaire
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: your_root_password
+      MYSQL_DATABASE: ecoride
+      MYSQL_USER: ecoride
+      MYSQL_PASSWORD: 'ePStl]LoOamt8dZ2'
+    volumes:
+      - db_data:/var/lib/mysql
+
+  app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "8000:80" # Pour accéder à l'application localement sur le port 8000
+    environment:
+      DATABASE_URL: 'mysql://ecoride:ePStl]LoOamt8dZ2@db:3306/ecoride'
+      # Ajoute ici les variables d'environnement de ton application
+    depends_on:
+      - db
+    volumes:
+      - .:/var/www/symfony:delegated
+
+volumes:
+  db_data:
