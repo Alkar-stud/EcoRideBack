@@ -17,3 +17,4 @@ RUN chown -R www-data:www-data /var/www/html
 
 # Commande par défaut
 CMD ["php", "-S", "0.0.0.0:80", "-t", "public"]
+
