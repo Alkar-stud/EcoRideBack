@@ -10,7 +10,7 @@ COPY . .
 RUN npm install
 
 # Expose le port (adapter si nécessaire)
-EXPOSE 3000
+EXPOSE 8000
 
 # Commande pour démarrer l'app
-CMD ["npm", "start"] 
+CMD ["server", "start"] 
