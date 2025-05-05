@@ -1,31 +1,32 @@
-version: '3.3'
+version: '3.8'
 
 services:
-  database:
-    image: mysql:8.0
-    container_name: app_mysql
-    restart: always
-    volumes:
-      - mysql_data:/var/lib/mysql
+  db:
+    image: mysql:8
+    container_name: mysql_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD} # Utilise la variable d'environnement DB_PASSWORD
-      MYSQL_DATABASE: ${DB_NAME}         # Utilise la variable d'environnement DB_NAME
-      MYSQL_USER: ${DB_USER}             # Utilise la variable d'environnement DB_USER
-      MYSQL_PASSWORD: ${DB_PASSWORD}     # Utilise la variable d'environnement DB_PASSWORD
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ecoride
+      MYSQL_USER: ecoride_user
+      MYSQL_PASSWORD: ecoride_pass
     ports:
       - "3306:3306"
-
-  php:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: app_php
-    depends_on:
-      - database
     volumes:
-      - ./:/var/www/html
+      - db_data:/var/lib/mysql
+
+  backend:
+    build: .
+    container_name: ecoride_backend
+    ports:
+      - "8000:8000"
     environment:
-      DATABASE_URL: "mysql://app_user:app_password@database:3306/app_db"
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ecoride_user
+      DB_PASSWORD: ecoride_pass
+      DB_NAME: ecoride
+    depends_on:
+      - db
 
 volumes:
-  mysql_data:
+  db_data: 
