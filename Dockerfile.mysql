@@ -1,9 +1,0 @@
-# Dockerfile.mysql
-FROM mysql:8.0
-
-ENV MYSQL_ROOT_PASSWORD=rootpassword
-ENV MYSQL_DATABASE=ecoride
-ENV MYSQL_USER=ecoride
-ENV MYSQL_PASSWORD='ePStl]LoOamt8dZ2'
-
-EXPOSE 3306
