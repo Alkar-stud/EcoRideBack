@@ -1,31 +1,28 @@
-version: '3.3'
+version: '3.6'
 
 services:
-  database:
-    image: mysql:8.0
-    container_name: app_mysql
-    restart: always
-    volumes:
-      - mysql_data:/var/lib/mysql
+  db:
+    image: mysql:8
+    container_name: mysql_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD} # Utilise la variable d'environnement DB_PASSWORD
-      MYSQL_DATABASE: ${DB_NAME}         # Utilise la variable d'environnement DB_NAME
-      MYSQL_USER: ${DB_USER}             # Utilise la variable d'environnement DB_USER
-      MYSQL_PASSWORD: ${DB_PASSWORD}     # Utilise la variable d'environnement DB_PASSWORD
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ecoride
+      MYSQL_USER: ecoride
+      MYSQL_PASSWORD: 'ePStl]LoOamt8dZ2'
     ports:
-      - "3306:3306"
-
-  php:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: app_php
-    depends_on:
-      - database
+      - "3307:3306" # Change le port exposé à 3307 pour éviter le conflit avec la machine locale
     volumes:
-      - ./:/var/www/html
+      - db_data:/var/lib/mysql
+
+  symfony:
+    build: .
+    container_name: ecoride_symfony
+    ports:
+      - "8000:8000"
     environment:
-      DATABASE_URL: "mysql://app_user:app_password@database:3306/app_db"
+      DATABASE_URL: "mysql://ecoride:ePStl]LoOamt8dZ2@db:3306/ecoride"
+    depends_on:
+      - db
 
 volumes:
-  mysql_data:
+  db_data:
