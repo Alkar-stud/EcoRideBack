@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Preferences;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -74,8 +75,7 @@ class SecurityController extends AbstractController
     )]
     #[OA\Response(
         response: 201,
-        description: 'Utilisateur inscrit avec succès',
-        content: new Model(type: User::class, groups: ['user_login'])
+        description: 'Utilisateur inscrit avec succès'
     )]
     #[OA\Response(
         response: 400,
@@ -105,21 +105,39 @@ class SecurityController extends AbstractController
             return new JsonResponse(['message' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial.'], Response::HTTP_BAD_REQUEST);
         }
 
+
+
+
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());
 
         //Ajout des 2 préférences par défaut à "no" pour fumeur et animaux
+        $smokingPreference = new Preferences();
+        $smokingPreference->setLibelle('smokingAllowed');
+        $smokingPreference->setDescription('no');
+        $smokingPreference->setUser($user);
+        $smokingPreference->setCreatedAt(new DateTimeImmutable());
 
+        $petsPreference = new Preferences();
+        $petsPreference->setLibelle('petsAllowed');
+        $petsPreference->setDescription('no');
+        $petsPreference->setUser($user);
+        $petsPreference->setCreatedAt(new DateTimeImmutable());
+
+        $user->addUserPreference($smokingPreference);
+        $user->addUserPreference($petsPreference);
+        //persister les préférences
+        $this->manager->persist($smokingPreference);
+        $this->manager->persist($petsPreference);
+        //persister l'utilisateur
 
         $this->manager->persist($user);
         $this->manager->flush();
         return new JsonResponse(
-            ['user'  => $user->getUserIdentifier(), 'apiToken' => $user->getApiToken(), 'roles' => $user->getRoles()],
+            ['message' => 'Utilisateur inscrit avec succès', 'user' => $user->getUserIdentifier()],
             Response::HTTP_CREATED
         );
     }
-
-// …
 
     #[Route('/login', name: 'login', methods: 'POST')]
     #[OA\Post(
@@ -416,10 +434,10 @@ class SecurityController extends AbstractController
             $user->setPhoto($newFilename);
             $this->manager->flush();
         } catch (FileException $e) {
-            return new JsonResponse(['error' => true, 'message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
 
-        return new JsonResponse(['success' => true, 'message' => 'Photo uploadée avec succès'], Response::HTTP_OK);
+        return new JsonResponse(['message' => 'Photo uploadée avec succès'], Response::HTTP_OK);
     }
 
     private function resizeAvatar(mixed $photoFile): GdImage
