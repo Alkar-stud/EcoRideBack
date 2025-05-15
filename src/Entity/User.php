@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Repository\UserRepository;
 use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Random\RandomException;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
@@ -75,6 +77,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user_account'])]
     private ?DateTimeImmutable $updatedAt = null;
 
+    /**
+     * @var Collection<int, Preferences>
+     */
+    #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
+    private Collection $userPreferences;
+
 
     /**
      * @throws RandomException
@@ -89,6 +97,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         //$this->noticesPublisher = new ArrayCollection();
         //$this->noticesToValidate = new ArrayCollection();
         //$this->ridesDriver = new ArrayCollection();
+        $this->userPreferences = new ArrayCollection();
 
     }
 
@@ -296,6 +305,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Preferences>
+     */
+    public function getUserPreferences(): Collection
+    {
+        return $this->userPreferences;
+    }
+
+    public function addUserPreference(Preferences $userPreference): static
+    {
+        if (!$this->userPreferences->contains($userPreference)) {
+            $this->userPreferences->add($userPreference);
+            $userPreference->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeUserPreference(Preferences $userPreference): static
+    {
+        if ($this->userPreferences->removeElement($userPreference)) {
+            // set the owning side to null (unless already changed)
+            if ($userPreference->getUser() === $this) {
+                $userPreference->setUser(null);
+            }
+        }
 
         return $this;
     }
