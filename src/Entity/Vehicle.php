@@ -46,10 +46,8 @@ class Vehicle
     #[Groups(['user_account'])]
     private ?int $maxNbPlacesAvailable = null;
 
-//    #[ORM\ManyToOne(inversedBy: 'userVehicles')]
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: "userVehicles")]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['user_account'])]
     private ?User $owner = null;
 
     #[ORM\Column]

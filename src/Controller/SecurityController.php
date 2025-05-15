@@ -32,6 +32,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 
 #[Route('/api', name: 'app_api_')]
+#[OA\Tag(name: 'User')]
 #[Areas(["default"])]
 class SecurityController extends AbstractController
 {

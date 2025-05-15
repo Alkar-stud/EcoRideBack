@@ -92,7 +92,7 @@ final class PreferencesController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Préférences trouvées avec succès',
-        content: new Model(type: Preferences::class, groups: ['user_read'])
+        content: new Model(type: Preferences::class, groups: ['user_account'])
     )]
     public function showAll(#[CurrentUser] ?User $user): JsonResponse
     {

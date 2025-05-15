@@ -88,6 +88,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Vehicle>
      */
     #[ORM\OneToMany(targetEntity: Vehicle::class, mappedBy: 'owner', orphanRemoval: true)]
+    #[Groups(['user_account'])]
     private Collection $userVehicles;
 
 

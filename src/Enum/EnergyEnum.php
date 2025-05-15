@@ -8,8 +8,18 @@ enum EnergyEnum: string
 {
     case ECO = 'Électrique';
     case ALMOSTECO = 'Hybride';
-    case NOECO = 'Carburant inflammable';
+    case NOTECO = 'Carburant inflammable';
 
+    // Définir une constante qui contient tous les noms
+    public const NAMES = ['ECO', 'ALMOSTECO', 'NOTECO'];
+
+    /**
+     * Retourne tous les noms des cas de l'énumération
+     */
+    public static function getNames(): array
+    {
+        return array_map(fn($case) => $case->name, self::cases());
+    }
     public function findAll(): array
     {
         return [
@@ -20,7 +30,7 @@ enum EnergyEnum: string
                 EnergyEnum::ALMOSTECO
             ),
             new Vehicle(
-                EnergyEnum::NOECO
+                EnergyEnum::NOTECO
             ),
         ];
     }
