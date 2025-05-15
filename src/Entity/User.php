@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Random\RandomException;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
@@ -19,12 +20,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
+    #[Groups(['user_account'])]
     private ?string $email = null;
 
     /**
      * @var list<string> The user roles
      */
     #[ORM\Column]
+    #[Groups(['user_account'])]
     private array $roles = [];
 
     /**
@@ -34,33 +37,42 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $password = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['user_account'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['user_account'])]
     private ?string $photo = null;
 
     #[ORM\Column]
+    #[Groups(['user_account'])]
     private ?int $credits = 0;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_account'])]
     private ?int $grade = null;
 
     #[ORM\Column]
+    #[Groups(['user_account'])]
     private ?bool $isDriver = false;
 
     #[ORM\Column]
+    #[Groups(['user_account'])]
     private ?bool $isPassenger = false;
 
     #[ORM\Column(length: 64)]
+    #[Groups(['user_account'])]
     private ?string $apiToken;
 
     #[ORM\Column]
     private ?bool $isActive = true;
 
     #[ORM\Column]
+    #[Groups(['user_account'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['user_account'])]
     private ?DateTimeImmutable $updatedAt = null;
 
 
