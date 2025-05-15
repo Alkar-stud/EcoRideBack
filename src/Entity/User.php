@@ -84,6 +84,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user_account'])]
     private Collection $userPreferences;
 
+    /**
+     * @var Collection<int, Vehicle>
+     */
+    #[ORM\OneToMany(targetEntity: Vehicle::class, mappedBy: 'owner', orphanRemoval: true)]
+    private Collection $userVehicles;
+
 
     /**
      * @throws RandomException
@@ -92,13 +98,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->apiToken = bin2hex(random_bytes(32)); // Pour générer un apiToken dès la création d'un utilisateur
         $this->userPreferences = new ArrayCollection();
-        //$this->vehicles = new ArrayCollection();
-        //$this->trips = new ArrayCollection();
-        //$this->tripsUsers = new ArrayCollection();
-        //$this->noticesPublisher = new ArrayCollection();
-        //$this->noticesToValidate = new ArrayCollection();
-        //$this->ridesDriver = new ArrayCollection();
-
+        $this->userVehicles = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -333,6 +333,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // set the owning side to null (unless already changed)
             if ($userPreference->getUser() === $this) {
                 $userPreference->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Vehicle>
+     */
+    public function getUserVehicles(): Collection
+    {
+        return $this->userVehicles;
+    }
+
+    public function addUserVehicle(Vehicle $userVehicle): static
+    {
+        if (!$this->userVehicles->contains($userVehicle)) {
+            $this->userVehicles->add($userVehicle);
+            $userVehicle->setOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeUserVehicle(Vehicle $userVehicle): static
+    {
+        if ($this->userVehicles->removeElement($userVehicle)) {
+            // set the owning side to null (unless already changed)
+            if ($userVehicle->getOwner() === $this) {
+                $userVehicle->setOwner(null);
             }
         }
 
