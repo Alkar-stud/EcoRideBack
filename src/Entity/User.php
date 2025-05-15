@@ -81,6 +81,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Preferences>
      */
     #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
+    #[Groups(['user_account'])]
     private Collection $userPreferences;
 
 
@@ -90,14 +91,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function __construct()
     {
         $this->apiToken = bin2hex(random_bytes(32)); // Pour générer un apiToken dès la création d'un utilisateur
-        //$this->preferences = new ArrayCollection();
+        $this->userPreferences = new ArrayCollection();
         //$this->vehicles = new ArrayCollection();
         //$this->trips = new ArrayCollection();
         //$this->tripsUsers = new ArrayCollection();
         //$this->noticesPublisher = new ArrayCollection();
         //$this->noticesToValidate = new ArrayCollection();
         //$this->ridesDriver = new ArrayCollection();
-        $this->userPreferences = new ArrayCollection();
 
     }
 
@@ -285,24 +285,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTimeImmutable
+    public function getCreatedAt(): ?DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function setCreatedAt(\DateTimeImmutable $createdAt): static
+    public function setCreatedAt(DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
 
         return $this;
     }
 
-    public function getUpdatedAt(): ?\DateTimeImmutable
+    public function getUpdatedAt(): ?DateTimeImmutable
     {
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
+    public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
 
