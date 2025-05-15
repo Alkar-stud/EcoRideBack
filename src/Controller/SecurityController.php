@@ -240,7 +240,6 @@ class SecurityController extends AbstractController
     public function edit(
         #[CurrentUser] ?User $user,
         Request $request,
-        UserPasswordHasherInterface $passwordHasher,
         #[Autowire('%kernel.project_dir%/public/uploads/photos')] string $photoDirectory
     ): JsonResponse
     {
@@ -320,9 +319,9 @@ class SecurityController extends AbstractController
             content: [new MediaType(mediaType:"multipart/form-data",
                 schema: new Schema(properties: [new Property(
                     property: "photo",
+                    description: "Fichier image à uploader (jpg, png ou webp, max 100px*100px)",
                     type: "string",
-                    format: "binary",
-                    description: "Fichier image à uploader (jpg, png ou webp, max 100px*100px)"
+                    format: "binary"
                 )], type: "object"))]
         ),
     )]
@@ -377,21 +376,21 @@ class SecurityController extends AbstractController
                 switch ($photoFile->getMimeType()) {
                     case 'image/jpeg':
                         if (!@imagejpeg($resizedImage, $targetPath)) {
-                            throw new \Exception("Impossible d'écrire l'image JPEG");
+                            throw new Exception("Impossible d'écrire l'image JPEG");
                         }
                         break;
                     case 'image/png':
                         if (!@imagepng($resizedImage, $targetPath)) {
-                            throw new \Exception("Impossible d'écrire l'image PNG");
+                            throw new Exception("Impossible d'écrire l'image PNG");
                         }
                         break;
                     case 'image/webp':
                         if (!@imagewebp($resizedImage, $targetPath)) {
-                            throw new \Exception("Impossible d'écrire l'image WebP");
+                            throw new Exception("Impossible d'écrire l'image WebP");
                         }
                         break;
                     default:
-                        throw new \Exception("Format d'image non pris en charge");
+                        throw new Exception("Format d'image non pris en charge");
                 }
 
                 imagedestroy($resizedImage);
