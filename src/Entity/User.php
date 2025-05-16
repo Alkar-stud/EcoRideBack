@@ -97,6 +97,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Ride::class, mappedBy: 'driver', orphanRemoval: true)]
     private Collection $ridesDriver;
 
+    /**
+     * @var Collection<int, Ride>
+     */
+    #[ORM\ManyToMany(targetEntity: Ride::class, mappedBy: 'passenger')]
+    private Collection $ridesPassenger;
+
 
     /**
      * @throws RandomException
@@ -107,6 +113,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->userPreferences = new ArrayCollection();
         $this->userVehicles = new ArrayCollection();
         $this->ridesDriver = new ArrayCollection();
+        $this->ridesPassenger = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -402,6 +409,33 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             if ($ridesDriver->getDriver() === $this) {
                 $ridesDriver->setDriver(null);
             }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Ride>
+     */
+    public function getRidesPassenger(): Collection
+    {
+        return $this->ridesPassenger;
+    }
+
+    public function addRidesPassenger(Ride $ridesPassenger): static
+    {
+        if (!$this->ridesPassenger->contains($ridesPassenger)) {
+            $this->ridesPassenger->add($ridesPassenger);
+            $ridesPassenger->addPassenger($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRidesPassenger(Ride $ridesPassenger): static
+    {
+        if ($this->ridesPassenger->removeElement($ridesPassenger)) {
+            $ridesPassenger->removePassenger($this);
         }
 
         return $this;

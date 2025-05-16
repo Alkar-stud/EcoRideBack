@@ -4,7 +4,10 @@ namespace App\Entity;
 
 use App\Repository\RideRepository;
 use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: RideRepository::class)]
 class Ride
@@ -12,24 +15,31 @@ class Ride
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['ride_read'])]
     private ?string $startingAddress = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['ride_read'])]
     private ?string $arrivalAddress = null;
 
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?DateTimeImmutable $arrivalAt = null;
 
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?int $price = null;
 
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?int $nbPlacesAvailable = null;
 
     #[ORM\Column(nullable: true)]
@@ -39,6 +49,7 @@ class Ride
     private ?DateTimeImmutable $actualArrivalAt = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['ride_read'])]
     private ?string $status = null;
 
     #[ORM\ManyToOne(inversedBy: 'ridesDriver')]
@@ -47,13 +58,26 @@ class Ride
 
     #[ORM\ManyToOne(inversedBy: 'ridesVehicle')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['ride_read'])]
     private ?Vehicle $vehicle = null;
 
     #[ORM\Column]
+    #[Groups(['ride_read'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $updatedAt = null;
+
+    /**
+     * @var Collection<int, User>
+     */
+    #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'ridesPassenger')]
+    private Collection $passenger;
+
+    public function __construct()
+    {
+        $this->passenger = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -212,6 +236,30 @@ class Ride
     public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public function getPassenger(): Collection
+    {
+        return $this->passenger;
+    }
+
+    public function addPassenger(User $passenger): static
+    {
+        if (!$this->passenger->contains($passenger)) {
+            $this->passenger->add($passenger);
+        }
+
+        return $this;
+    }
+
+    public function removePassenger(User $passenger): static
+    {
+        $this->passenger->removeElement($passenger);
 
         return $this;
     }

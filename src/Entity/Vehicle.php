@@ -17,35 +17,35 @@ class Vehicle
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 100)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?string $brand = null;
 
     #[ORM\Column(length: 100)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?string $model = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?string $color = null;
 
     #[ORM\Column(length: 25)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?string $licensePlate = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?DateTime $licenseFirstDate = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?string $energy = null;
 
     #[ORM\Column]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read'])]
     private ?int $maxNbPlacesAvailable = null;
 
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: "userVehicles")]
