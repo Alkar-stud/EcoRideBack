@@ -60,7 +60,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column]
     #[Groups(['user_account'])]
-    private ?bool $isPassenger = false;
+    private ?bool $isPassenger = true;
 
     #[ORM\Column(length: 64)]
     #[Groups(['user_account'])]
