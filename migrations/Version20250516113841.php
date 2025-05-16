@@ -19,7 +19,7 @@ final class Version20250516113841 extends AbstractMigration
 
         //Add content
         $this->addSql(<<<'SQL'
-            INSERT INTO `mails_type` (`code`, `subject`, `content`, `created_at`) VALUES ('cancel', 'EcoRide - Annulation du covoiturage du {date}', 'Bonjour, <br> le covoitugrage a été annulé.', NOW()), ('passengerValidation', 'EcoRide - Comment s&#039;est passé votre covoiturage ?', 'Comment s&#039;est passé votre covoiturage ? Vous devez valider et si vous souhaitez donner votre avis', NOW()), ('accountUserCreate', 'EcoRide - Bienvenue chez nous', 'Bienvenue chez nous !', NOW()), ('forgotPasword', 'EcoRide - Vous avez oublié votre mot de passe ?', 'Bonjour, <br />br&gt;veuillez trouver ci dessous votre mot de passe temporaire.', NOW())
+            INSERT INTO `mails_type` (`code`, `subject`, `content`, `created_at`) VALUES ('cancel', 'EcoRide - Annulation du covoiturage du {date}', 'Bonjour, <br> le covoiturage du {date} a été annulé.', NOW()), ('passengerValidation', 'EcoRide - Comment s&#039;est passé votre covoiturage ?', 'Comment s&#039;est passé votre covoiturage ? Vous devez valider et si vous souhaitez donner votre avis', NOW()), ('accountUserCreate', 'EcoRide - Bienvenue chez nous', 'Bonjour {pseudo} et bienvenue chez nous !', NOW()), ('forgotPassword', 'EcoRide - Vous avez oublié votre mot de passe ?', 'Bonjour, <br />br&gt;veuillez trouver ci dessous votre mot de passe temporaire.', NOW())
         SQL);
     }
 
