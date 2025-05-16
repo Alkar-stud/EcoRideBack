@@ -92,7 +92,7 @@ final class PreferencesController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Préférences trouvées avec succès',
-        content: new Model(type: Preferences::class, groups: ['user_read'])
+        content: new Model(type: Preferences::class, groups: ['user_account'])
     )]
     public function showAll(#[CurrentUser] ?User $user): JsonResponse
     {
@@ -184,7 +184,7 @@ final class PreferencesController extends AbstractController
             $this->manager->remove($preferences);
             $this->manager->flush();
 
-            return new JsonResponse(['message' => 'Cette préférence a été supprimée avec succès.'], Response::HTTP_OK);
+            return new JsonResponse([], Response::HTTP_NO_CONTENT);
         }
 
         return new JsonResponse(['error' => true, 'message' => 'Cette préférence n\'existe pas.'], Response::HTTP_NOT_FOUND);
