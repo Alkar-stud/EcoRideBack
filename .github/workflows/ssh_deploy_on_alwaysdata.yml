@@ -1,0 +1,26 @@
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Alwaysdata
+        uses: easingthemes/ssh-deploy@main
+        with:
+          SSH_PRIVATE_KEY:        ${{ secrets.SSH_KEY_ALWAYSDATA }}
+          REMOTE_HOST:            ${{ secrets.REMOTE_HOST_ALWAYSDATA }}
+          REMOTE_USER:            ${{ secrets.REMOTE_USER_ALWAYSDATA }}
+          REMOTE_PORT:            22
+          TARGET:                 ~/api/
+          SSH_CMD_ARGS:           "-o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
+          ARGS:                   "-rlgoDzvc --delete"
+          SCRIPT_BEFORE:          "unset SSH_AUTH_SOCK"
+          # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
+          EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
+          SCRIPT_BEFORE_REQUIRED: true
+#      - name: Install depandancy
+#        run: composer install
