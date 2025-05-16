@@ -91,6 +91,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user_account'])]
     private Collection $userVehicles;
 
+    /**
+     * @var Collection<int, Ride>
+     */
+    #[ORM\OneToMany(targetEntity: Ride::class, mappedBy: 'driver', orphanRemoval: true)]
+    private Collection $ridesDriver;
+
 
     /**
      * @throws RandomException
@@ -100,6 +106,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->apiToken = bin2hex(random_bytes(32)); // Pour générer un apiToken dès la création d'un utilisateur
         $this->userPreferences = new ArrayCollection();
         $this->userVehicles = new ArrayCollection();
+        $this->ridesDriver = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -364,6 +371,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // set the owning side to null (unless already changed)
             if ($userVehicle->getOwner() === $this) {
                 $userVehicle->setOwner(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Ride>
+     */
+    public function getRidesDriver(): Collection
+    {
+        return $this->ridesDriver;
+    }
+
+    public function addRidesDriver(Ride $ridesDriver): static
+    {
+        if (!$this->ridesDriver->contains($ridesDriver)) {
+            $this->ridesDriver->add($ridesDriver);
+            $ridesDriver->setDriver($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRidesDriver(Ride $ridesDriver): static
+    {
+        if ($this->ridesDriver->removeElement($ridesDriver)) {
+            // set the owning side to null (unless already changed)
+            if ($ridesDriver->getDriver() === $this) {
+                $ridesDriver->setDriver(null);
             }
         }
 

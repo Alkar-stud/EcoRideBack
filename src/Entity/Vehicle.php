@@ -5,6 +5,8 @@ namespace App\Entity;
 use App\Repository\VehicleRepository;
 use DateTime;
 use DateTimeImmutable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
@@ -55,6 +57,17 @@ class Vehicle
 
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $updatedAt = null;
+
+    /**
+     * @var Collection<int, Ride>
+     */
+    #[ORM\OneToMany(targetEntity: Ride::class, mappedBy: 'vehicle')]
+    private Collection $ridesVehicle;
+
+    public function __construct()
+    {
+        $this->ridesVehicle = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -177,6 +190,36 @@ class Vehicle
     public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Ride>
+     */
+    public function getRidesVehicle(): Collection
+    {
+        return $this->ridesVehicle;
+    }
+
+    public function addRidesVehicle(Ride $ridesVehicle): static
+    {
+        if (!$this->ridesVehicle->contains($ridesVehicle)) {
+            $this->ridesVehicle->add($ridesVehicle);
+            $ridesVehicle->setVehicle($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRidesVehicle(Ride $ridesVehicle): static
+    {
+        if ($this->ridesVehicle->removeElement($ridesVehicle)) {
+            // set the owning side to null (unless already changed)
+            if ($ridesVehicle->getVehicle() === $this) {
+                $ridesVehicle->setVehicle(null);
+            }
+        }
 
         return $this;
     }
