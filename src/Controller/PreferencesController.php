@@ -184,7 +184,7 @@ final class PreferencesController extends AbstractController
             $this->manager->remove($preferences);
             $this->manager->flush();
 
-            return new JsonResponse(['message' => 'Cette préférence a été supprimée avec succès.'], Response::HTTP_OK);
+            return new JsonResponse([], Response::HTTP_NO_CONTENT);
         }
 
         return new JsonResponse(['error' => true, 'message' => 'Cette préférence n\'existe pas.'], Response::HTTP_NOT_FOUND);

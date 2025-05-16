@@ -160,6 +160,7 @@ final class VehicleController extends AbstractController
         $vehicle->setOwner($user);
         $vehicle->setCreatedAt(new DateTimeImmutable());
 
+
         // Persistance
         $this->manager->persist($vehicle);
         $this->manager->flush();
@@ -356,7 +357,7 @@ final class VehicleController extends AbstractController
             $this->manager->remove($vehicle);
             $this->manager->flush();
 
-            return new JsonResponse(['message' => 'Le véhicule a été supprimé avec succès.'], Response::HTTP_NO_CONTENT);
+            return new JsonResponse([], Response::HTTP_NO_CONTENT);
         }
 
         return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
