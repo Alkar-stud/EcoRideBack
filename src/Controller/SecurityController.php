@@ -2,8 +2,10 @@
 
 namespace App\Controller;
 
+use App\Entity\MailsType;
 use App\Entity\Preferences;
 use App\Entity\User;
+use App\Service\MailService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -40,6 +42,7 @@ class SecurityController extends AbstractController
         private readonly EntityManagerInterface      $manager,
         private readonly SerializerInterface         $serializer,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly MailService                 $mailService,
     )
     {
     }
@@ -107,8 +110,6 @@ class SecurityController extends AbstractController
         }
 
 
-
-
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());
 
@@ -134,6 +135,11 @@ class SecurityController extends AbstractController
 
         $this->manager->persist($user);
         $this->manager->flush();
+
+        //On envoie le mail type 'accountUserCreate' à l'utilisateur
+        $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);
+
+
         return new JsonResponse(
             ['message' => 'Utilisateur inscrit avec succès', 'user' => $user->getUserIdentifier()],
             Response::HTTP_CREATED

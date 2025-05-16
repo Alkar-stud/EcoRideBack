@@ -1,4 +1,4 @@
-on:
+on: 
   push:
     branches:
       - main
@@ -22,5 +22,5 @@ jobs:
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
-#      - name: Install depandancy
-#        run: composer install
+      - name: Install dependencies
+        run: composer install
