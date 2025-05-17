@@ -86,6 +86,12 @@ class RideService
         if ($startingAt >= $arrivalAt) {
             return ['error' => 'DatesHoursInconsistent'];
         }
+        // Vérifier que les deux dates sont dans le futur
+        //on ne teste que $startingAt puisque déjà avant $arrivalAt avec le test précédent
+        $now = new DateTimeImmutable();
+        if ($startingAt < $now) {
+            return ['error' => 'StartingDateInPast'];
+        }
 
         //price est bien supérieur à PLATFORM_COMMISSION_CREDIT
         if (empty($tabData['price'])) {

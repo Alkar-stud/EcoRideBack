@@ -8,7 +8,7 @@ use Doctrine\ODM\MongoDB\MongoDBException;
 use Exception;
 use Throwable;
 
-readonly class MongoService
+class MongoService
 {
     public function __construct(
         public DocumentManager $documentManager

@@ -140,7 +140,10 @@ final class RideController extends AbstractController
 
         foreach ($requiredFields as $field) {
             if (empty($ride->{'get' . ucfirst($field)}())) {
-                throw new InvalidArgumentException("Le champ '$field' est requis.");
+                return new JsonResponse(
+                    ["message" => "Le champ '$field' est requis."],
+                    Response::HTTP_BAD_REQUEST
+                );
             }
         }
 
