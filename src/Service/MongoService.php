@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Document\MongoRide;
 use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Exception;
 use Throwable;
 
@@ -16,6 +17,10 @@ readonly class MongoService
     }
 
 
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
     public function add(array $data): void
     {
         // Ne pas convertir les dates en format ISO 8601 avant d'hydrater l'objet MongoRide
@@ -39,7 +44,11 @@ readonly class MongoService
     }
 
 
-public function update(array $criteria, array $data): void
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
+    public function update(array $criteria, array $data): void
 {
     // Rechercher le document existant
     $ride = $this->documentManager->getRepository(MongoRide::class)->findOneBy($criteria);

@@ -49,9 +49,7 @@ final class RideController extends AbstractController
     {
     }
 
-    /**
-     * @throws Exception
-     */
+
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[OA\Post(
         path:"/api/ride/add",

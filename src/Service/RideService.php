@@ -7,7 +7,6 @@ use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
-use App\Repository\VehicleRepository;
 use DateTimeImmutable;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,23 +17,19 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 class RideService
 {
     private EcorideRepository $ecorideRepository;
-    private VehicleRepository $vehicleRepository;
     private RideRepository $rideRepository;
     private MongoService $mongoService;
     private MailService $mailService;
-    private AddressValidator $addressValidator;
 
     public function __construct(
         private readonly EntityManagerInterface $manager,
         EcorideRepository                       $ecorideRepository,
-        VehicleRepository                       $vehicleRepository,
         RideRepository                          $rideRepository,
         MongoService                            $mongoService,
         MailService                             $mailService,
     )
     {
         $this->ecorideRepository = $ecorideRepository;
-        $this->vehicleRepository = $vehicleRepository;
         $this->rideRepository = $rideRepository;
         $this->mongoService = $mongoService;
         $this->mailService = $mailService;
@@ -110,7 +105,7 @@ class RideService
         try {
             $startingAt = new DateTimeImmutable($tabData['startingAt']);
             $arrivalAt = new DateTimeImmutable($tabData['arrivalAt']);
-        } catch (Exception $e) {
+        } catch (Exception) {
             return ['error' => 'InvalidDateFormat'];
         }
 

@@ -11,7 +11,7 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 class AddressValidator
 {
-    private $httpClient;
+    private HttpClientInterface $httpClient;
 
     public function __construct(HttpClientInterface $httpClient)
     {
@@ -64,7 +64,7 @@ class AddressValidator
                 'postcode' => $postcode,
                 'city' => $city
             ];
-        } catch (TransportExceptionInterface $e) {
+        } catch (TransportExceptionInterface) {
             return ['error' => 'Erreur lors de la requête à l\'API de géocodage'];
         }
     }
