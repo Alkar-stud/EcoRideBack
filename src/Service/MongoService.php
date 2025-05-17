@@ -45,7 +45,6 @@ public function update(array $criteria, array $data): void
     $ride = $this->documentManager->getRepository(MongoRide::class)->findOneBy($criteria);
 
     if (!$ride) {
-        // Document non trouvé, on pourrait ajouter un log ici
         return;
     }
 

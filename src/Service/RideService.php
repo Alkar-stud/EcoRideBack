@@ -4,7 +4,6 @@ namespace App\Service;
 
 use App\Entity\Ride;
 use App\Entity\User;
-use App\Enum\RideStatus;
 use App\Entity\Vehicle;
 use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
@@ -23,14 +22,15 @@ class RideService
     private RideRepository $rideRepository;
     private MongoService $mongoService;
     private MailService $mailService;
+    private AddressValidator $addressValidator;
 
     public function __construct(
-        private readonly EntityManagerInterface  $manager,
-        EcorideRepository   $ecorideRepository,
-        VehicleRepository   $vehicleRepository,
-        RideRepository      $rideRepository,
-        MongoService        $mongoService,
-        MailService        $mailService,
+        private readonly EntityManagerInterface $manager,
+        EcorideRepository                       $ecorideRepository,
+        VehicleRepository                       $vehicleRepository,
+        RideRepository                          $rideRepository,
+        MongoService                            $mongoService,
+        MailService                             $mailService,
     )
     {
         $this->ecorideRepository = $ecorideRepository;
@@ -38,36 +38,6 @@ class RideService
         $this->rideRepository = $rideRepository;
         $this->mongoService = $mongoService;
         $this->mailService = $mailService;
-    }
-
-    public function getFinishedStatus():  ?RideStatus
-    {
-        $ecoRide = $this->ecorideRepository->findOneBy(['libelle' => 'FINISHED_TRIP_STATUS_ID']);
-
-        if (!$ecoRide) {
-            return null;
-        }
-
-        $statusId = $ecoRide->getParameters();
-        $statusRepository = $this->manager->getRepository(RideStatus::class);
-
-        return $statusRepository->find($statusId);
-    }
-
-    public function getRideVehicle($vehicleId, $user): ?Vehicle
-    {
-        $vehicle = $this->vehicleRepository->findOneBy(['id' => $vehicleId]);
-
-        if (!$vehicle) {
-            return null;
-        }
-        //On vérifie si le véhicule appartient bien à CurrentUser
-        if ($vehicle->getOwner()->getId() !== $user->getId()) {
-            return null;
-        }
-
-        return $vehicle;
-
     }
 
     public function getPossibleStatus(): array
@@ -121,65 +91,64 @@ class RideService
     /**
      * @throws Exception
      */
-    public function validateConsistentData(string $typeData, array $tabData, User $user): bool
+    public function validateConsistentData(array $tabData, User $user): array
     {
         //startingAddress et arrivalAddress non vide et non identiques
-        if ($typeData === 'address') {
-            if ( (!isset($tabData['startingAddress']) || !isset($tabData['arrivalAddress']))
-                || $tabData['startingAddress'] === $tabData['arrivalAddress']
-                || $tabData['startingAddress'] === ''
-                || $tabData['arrivalAddress'] === ''
-                )
-            {
-                return false;
-            }
+        if ((empty($tabData['startingAddress']) || empty($tabData['arrivalAddress'])) )
+         {
+            return ['error' => 'AddressMissing'];
         }
-        //startingAt est bien une date est bien antérieure à arrivalAt qui est aussi bien une date
-        if ($typeData === 'date')
-        {
-            if (empty($tabData['startingAt']) || empty($tabData['arrivalAt']))
-            {
-                return false;
-            }
+        if ($tabData['startingAddress'] === $tabData['arrivalAddress']) {
+            return ['error' => 'AddressSame'];
+        }
+
+        //Vérification sur les dates
+        if (empty($tabData['startingAt']) || empty($tabData['arrivalAt'])) {
+            return ['error' => 'DateMissing'];
+        }
+        // Vérifier que les dates sont bien des dates et cohérentes l'une par rapport à l'autre
+        try {
             $startingAt = new DateTimeImmutable($tabData['startingAt']);
             $arrivalAt = new DateTimeImmutable($tabData['arrivalAt']);
-            if ($startingAt >= $arrivalAt) {
-                return false;
-            }
+        } catch (Exception $e) {
+            return ['error' => 'InvalidDateFormat'];
         }
-        //price est bien supérieur à PLATFORM_COMMISSION_CREDIT
-        if ($typeData === 'price')
-        {
-            if (empty($tabData['price']))
-            {
-                return false;
-            }
-            $price = $tabData['price'];
-            $platformCommission = $this->ecorideRepository->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT']);
-            if ($price < $platformCommission->getParameterValue()) {
-                return false;
-            }
-        }
-        //Le véhicule existe et appartient au user
-        if ($typeData === 'vehicle')
-        {
-            if (empty($tabData['vehicle']))
-            {
-                return false;
-            }
-            $vehicleId = $tabData['vehicle'];
-            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $vehicleId, 'owner' => $user->getId()]);
-            if (!$vehicle) {
-                return false;
-            }
-            //Vérification que le véhicule a assez de place max
-            if ($vehicle->getMaxNbPlacesAvailable() < $tabData['nbPlacesAvailable']) {
-                return false;
-            }
-        }
-        return true;
-    }
 
+        if ($startingAt >= $arrivalAt) {
+            return ['error' => 'DatesHoursInconsistent'];
+        }
+
+        //price est bien supérieur à PLATFORM_COMMISSION_CREDIT
+        if (empty($tabData['price'])) {
+            return ['error' => 'PriceMissing'];
+        }
+        $price = $tabData['price'];
+        $platformCommission = $this->ecorideRepository->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT']);
+        if ($price < $platformCommission->getParameterValue()) {
+            return ['error' => 'PriceTooLowMin_' . $platformCommission->getParameterValue()];
+        }
+
+        //Si nbPlacesAvailable est bien > à 0.
+        if ($tabData['nbPlacesAvailable'] <= 0) {
+            return ['error' => 'NotEnoughPlacesAvailable'];
+        }
+
+        //Le véhicule existe et appartient au user
+        if (empty($tabData['vehicle'])) {
+            return ['error' => 'VehicleMissing'];
+        }
+        $vehicleId = $tabData['vehicle'];
+        $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $vehicleId, 'owner' => $user->getId()]);
+        if (!$vehicle) {
+            return ['error' => 'VehicleNotFound'];
+        }
+        //Vérification que le véhicule a assez de place max
+        if ($vehicle->getMaxNbPlacesAvailable() < $tabData['nbPlacesAvailable']) {
+            return ['error' => 'VehicleNotEnoughPlaces'];
+        }
+
+        return ['message' => 'ok'];
+    }
 
     /**
      * Valide les données de mise à jour du covoiturage
@@ -317,6 +286,7 @@ class RideService
             ]
         );
     }
+
 
 
 }

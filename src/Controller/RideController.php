@@ -10,6 +10,7 @@ use App\Repository\RideRepository;
 use App\Repository\EcorideRepository;
 use App\Service\MongoService;
 use App\Service\RideService;
+use App\Service\AddressValidator;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -42,6 +43,7 @@ final class RideController extends AbstractController
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
         private readonly RideService            $rideService,
+        private readonly AddressValidator       $addressValidator,
         private readonly EcorideRepository      $ecorideRepository,
     )
     {
@@ -61,12 +63,12 @@ final class RideController extends AbstractController
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
                     type: "string",
-                    example: "rue|VILLE"
+                    example: "nom de rue ville"
                 ),
                     new Property(
                         property: "arrivalAddress",
                         type: "string",
-                        example: "rue|VILLE"
+                        example: "nom de rue ville"
                     ),
                     new Property(
                         property: "startingAt",
@@ -103,47 +105,37 @@ final class RideController extends AbstractController
     )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
-        $ride = $this->serializer->deserialize($request->getContent(), Ride::class, 'json');
-
         // Récupération des données de la requête
         $data = json_decode($request->getContent(), true);
 
-        if (!$this->rideService->validateConsistentData('vehicle', $data, $user) )
-        {
+        //Vérification de la cohérence des données reçues
+        $validateConsistentData = $this->rideService->validateConsistentData($data, $user);
+
+        if (isset($validateConsistentData['error'])) {
             return new JsonResponse(
-                ["message" => "Le véhicule est manquant, inexistant ou n'a pas assez de places disponibles"],
+                ["message" => $validateConsistentData['error']],
                 Response::HTTP_BAD_REQUEST
             );
         }
+
+        $ride = $this->serializer->deserialize($request->getContent(), Ride::class, 'json');
+
+        $startingAddressValidation = $this->addressValidator->validateAndDecomposeAddress($ride->getStartingAddress());
+        if (isset($startingAddressValidation['error'])) {
+            return new JsonResponse(['error' => 'startingAddress: ' . $startingAddressValidation['error']], Response::HTTP_BAD_REQUEST);
+        }
+        $ride->setStartingAddress(json_encode($startingAddressValidation, true));
+
+        $arrivalAddressValidation = $this->addressValidator->validateAndDecomposeAddress($ride->getArrivalAddress());
+        if (isset($arrivalAddressValidation['error'])) {
+            return new JsonResponse(['error' => 'arrivalAddress: ' . $arrivalAddressValidation['error']], Response::HTTP_BAD_REQUEST);
+        }
+        $ride->setArrivalAddress(json_encode($arrivalAddressValidation, true));
+
+        // Récupération du véhicule
         $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $data['vehicle'], 'owner' => $user->getId()]);
         $ride->setVehicle($vehicle);
 
-        //Vérification des adresses
-        if (!$this->rideService->validateConsistentData('address', $data, $user) )
-        {
-            return new JsonResponse(
-                ["message" => "Au moins une des adresses est manquante ou identique à l'autre"],
-                Response::HTTP_BAD_REQUEST
-            );
-        }
-
-        //Vérification des dates
-        if (!$this->rideService->validateConsistentData('date', $data, $user) )
-        {
-            return new JsonResponse(
-                ["message" => "Au moins une des dates manque ou est incohérente par rapport à l'autre"],
-                Response::HTTP_BAD_REQUEST
-            );
-        }
-
-        //Vérification du prix
-        if (!$this->rideService->validateConsistentData('price', $data, $user) )
-        {
-            return new JsonResponse(
-                ["message" => "La tarif demandé est inférieur à la commission de EcoRide qui est de " . $this->ecorideRepository->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT'])->getParameterValue() . " crédits"],
-                Response::HTTP_BAD_REQUEST
-            );
-        }
 
         // Vérification des champs requis
         $requiredFields = ['startingAddress', 'arrivalAddress', 'startingAt', 'arrivalAt', 'price', 'nbPlacesAvailable', 'vehicle'];
@@ -302,16 +294,6 @@ final class RideController extends AbstractController
             required: true,
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
-                    property: "startingAddress",
-                    type: "string",
-                    example: "rue|VILLE"
-                ),
-                    new Property(
-                        property: "arrivalAddress",
-                        type: "string",
-                        example: "rue|VILLE"
-                    ),
-                    new Property(
                         property: "startingAt",
                         type: "datetime",
                         example: "2025-07-01 10:00:00"

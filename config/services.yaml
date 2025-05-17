@@ -18,6 +18,10 @@ services:
         arguments:
             $documentManager: '@doctrine_mongodb.odm.document_manager'
 
+    App\Service\AddressValidator:
+        arguments:
+            $httpClient: '@http_client'
+
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
     App\:
