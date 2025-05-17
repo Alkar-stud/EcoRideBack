@@ -9,9 +9,11 @@ use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
 use DateTimeImmutable;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Throwable;
 
 
 class RideService
@@ -54,34 +56,6 @@ class RideService
         return true;
     }
 
-    /**
-     * Vérifie si les données sont identiques à celles déjà enregistrées
-     * @throws Exception
-     */
-    public function isRideDataIdentical(Ride $ride, array $dataRequest): bool
-    {
-        foreach ($dataRequest as $field => $newValue) {
-            if ($field === 'vehicle') {
-                if ((int)$newValue !== $ride->getVehicle()->getId()) {
-                    return false;
-                }
-            } elseif (in_array($field, ['startingAt', 'arrivalAt'])) {
-                $existingDate = $ride->{'get' . ucfirst($field)}();
-                $newDate = new DateTimeImmutable($newValue);
-
-                if ($existingDate->format('Y-m-d H:i:s') !== $newDate->format('Y-m-d H:i:s')) {
-                    return false;
-                }
-            } else {
-                $getter = 'get' . ucfirst($field);
-                if (method_exists($ride, $getter) && $ride->$getter() != $newValue) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
 
     /**
      * @throws Exception
@@ -145,99 +119,6 @@ class RideService
         return ['message' => 'ok'];
     }
 
-    /**
-     * Valide les données de mise à jour du covoiturage
-     */
-    public function validateRideUpdateData(
-        Ride $ride,
-        array &$dataRequest,
-        array $champsModifiables,
-        int $passengerCount,
-        User $user
-    ): bool|string {
-        // Filtrer les champs non modifiables
-        $dataRequest = array_filter(
-            $dataRequest,
-            fn($key) => in_array($key, $champsModifiables),
-            ARRAY_FILTER_USE_KEY
-        );
-
-        // Vérification du nombre de places
-        if (isset($dataRequest['nbPlacesAvailable'])) {
-            if ($dataRequest['nbPlacesAvailable'] <= 0) {
-                return "Vous ne pouvez pas mettre 0 place disponible. Annulez le covoiturage.";
-            }
-
-            if ($dataRequest['nbPlacesAvailable'] > $ride->getVehicle()->getMaxNbPlacesAvailable()) {
-                return "Il n'y a pas assez de place dans la voiture pour accueillir autant de monde.";
-            }
-
-            if ($passengerCount > $dataRequest['nbPlacesAvailable']) {
-                return "Vous ne pouvez pas mettre moins de places que de participants déjà inscrits";
-            }
-        }
-
-        // Si des passagers sont inscrits, limiter les champs modifiables
-        if ($passengerCount > 0) {
-            $restrictedFields = array_diff($champsModifiables, ["vehicle", "nbPlacesAvailable"]);
-
-            foreach ($restrictedFields as $field) {
-                if (isset($dataRequest[$field])) {
-                    return "Vous ne pouvez pas modifier cela lorsqu'il y a des participants";
-                }
-            }
-        }
-
-        // Vérification du véhicule
-        if (isset($dataRequest['vehicle'])) {
-            $vehicleId = $dataRequest['vehicle'];
-            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy([
-                'id' => $vehicleId,
-                'owner' => $user->getId()
-            ]);
-
-            if (!$vehicle) {
-                return "Ce véhicule n'existe pas.";
-            }
-
-            // Vérifier si le véhicule a assez de places
-            if ($passengerCount > $vehicle->getMaxNbPlacesAvailable()) {
-                return "Ce véhicule n'a pas assez de places pour les passagers déjà inscrits.";
-            }
-
-            // Stocker l'objet véhicule pour l'utiliser plus tard
-            $dataRequest['vehicleObject'] = $vehicle;
-        }
-
-        return true;
-    }
-
-    /**
-     * Met à jour l'entité Ride avec les nouvelles données
-     * @throws Exception
-     */
-    public function updateRideEntity(Ride $ride, array $dataRequest): void
-    {
-        foreach ($dataRequest as $field => $value) {
-            if ($field === 'vehicle') {
-                $ride->setVehicle($dataRequest['vehicleObject']);
-            } elseif (in_array($field, ['startingAt', 'arrivalAt'])) {
-                $setter = 'set' . ucfirst($field);
-                $ride->$setter(new DateTimeImmutable($value));
-            } elseif ($field !== 'vehicleObject') { // Ignorer notre champ temporaire
-                $setter = 'set' . ucfirst($field);
-                if (method_exists($ride, $setter)) {
-                    $ride->$setter($value);
-                }
-            }
-        }
-
-        $ride->setUpdatedAt(new DateTimeImmutable());
-
-        $this->manager->persist($ride);
-        $this->manager->flush();
-    }
-
 
     /**
      * Notifie les passagers des modifications
@@ -259,28 +140,35 @@ class RideService
      */
     public function updateRideInMongo(Ride $ride): void
     {
-        $this->mongoService->update(
-            ['rideId' => $ride->getId()],
-            [
-                'startingAddress' => $ride->getStartingAddress(),
-                'arrivalAddress' => $ride->getArrivalAddress(),
-                'startingAt' => $ride->getStartingAt(),
-                'arrivalAt' => $ride->getArrivalAt(),
-                'duration' => ($ride->getArrivalAt()->diff($ride->getStartingAt())->h * 60) +
-                    $ride->getArrivalAt()->diff($ride->getStartingAt())->i,
-                'price' => $ride->getPrice(),
-                'nbPlacesAvailable' => $ride->getNbPlacesAvailable(),
-                'updatedAt' => $ride->getUpdatedAt(),
-                'vehicle' => [
-                    'brand' => $ride->getVehicle()->getBrand(),
-                    'model' => $ride->getVehicle()->getModel(),
-                    'color' => $ride->getVehicle()->getColor(),
-                    'energy' => $ride->getVehicle()->getEnergy(),
-                    'isEco' => $ride->getVehicle()->getEnergy() === 'ECO',
-                ],
-            ]
-        );
+
+        try {
+            $this->mongoService->update(
+                ['rideId' => $ride->getId()],
+                [
+                    'startingAddress' => $ride->getStartingAddress(),
+                    'arrivalAddress' => $ride->getArrivalAddress(),
+                    'startingAt' => $ride->getStartingAt(),
+                    'arrivalAt' => $ride->getArrivalAt(),
+                    'duration' => ($ride->getArrivalAt()->diff($ride->getStartingAt())->h * 60) +
+                        $ride->getArrivalAt()->diff($ride->getStartingAt())->i,
+                    'price' => $ride->getPrice(),
+                    'nbPlacesAvailable' => $ride->getNbPlacesAvailable() - count($ride->getPassenger()),
+                    'nbParticipant' => count($ride->getPassenger()),
+                    'updatedAt' => $ride->getUpdatedAt(),
+                    'vehicle' => [
+                        'brand' => $ride->getVehicle()->getBrand(),
+                        'model' => $ride->getVehicle()->getModel(),
+                        'color' => $ride->getVehicle()->getColor(),
+                        'energy' => $ride->getVehicle()->getEnergy(),
+                        'isEco' => $ride->getVehicle()->getEnergy() === 'ECO',
+                    ],
+                ]
+            );
+        } catch (MongoDBException|Throwable $e) {
+
+        }
     }
+
 
 
 

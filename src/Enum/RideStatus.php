@@ -56,4 +56,11 @@ enum RideStatus: int
         ];
     }
 
+    public static function getRideFieldsUpdatable(): array
+    {
+        return [
+            "vehicle", "price", "nbPlacesAvailable"
+        ];
+    }
+
 }

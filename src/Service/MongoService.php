@@ -79,9 +79,14 @@ readonly class MongoService
     if (isset($data['nbPlacesAvailable'])) {
         $ride->setNbPlacesAvailable($data['nbPlacesAvailable']);
     }
+    if (isset($data['nbParticipant'])) {
+        $ride->setNbParticipant($data['nbParticipant']);
+    }
     if (isset($data['vehicle'])) {
         $ride->setVehicle($data['vehicle']);
     }
+
+
 
     // Persistance des modifications
     $this->documentManager->persist($ride);

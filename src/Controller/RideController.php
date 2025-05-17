@@ -292,16 +292,6 @@ final class RideController extends AbstractController
             required: true,
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
-                        property: "startingAt",
-                        type: "datetime",
-                        example: "2025-07-01 10:00:00"
-                    ),
-                    new Property(
-                        property: "arrivalAt",
-                        type: "datetime",
-                        example: "2025-07-01 12:00:00"
-                    ),
-                    new Property(
                         property: "price",
                         type: "integer",
                         example: 15
@@ -335,6 +325,7 @@ final class RideController extends AbstractController
     )]
     public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
     {
+        //Récupération de l'entité à modifier
         $ride = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
         // Vérification de l'existence du covoiturage
         if (!$ride) {
@@ -351,48 +342,91 @@ final class RideController extends AbstractController
             );
         }
 
+        //Récupération des données de la requête
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
 
-        // Vérification si les données sont identiques
-        if ($this->rideService->isRideDataIdentical($ride, $dataRequest)) {
+        // Liste des champs modifiables
+        $champsModifiables = RideStatus::getRideFieldsUpdatable();
+
+        $dataRequestValidated = $dataRequest;
+        //s'il y a des champs non modifiables, on indique les champs en trop et on retourne
+        foreach ($dataRequestValidated as $key => $value) {
+            if (!in_array($key, $champsModifiables)) {
+                return new JsonResponse(['message' => "Le champ $key n'est pas modifiable"], Response::HTTP_BAD_REQUEST);
+            }
+            //On supprime de $dataRequestValidated les champs inchangés pour éviter d'envoyer un mail si aucun changement n'est effectué
+            if ($ride->{'get' . ucfirst($key)}() === $value) {
+                unset($dataRequestValidated[$key]);
+            }
+            //Dans le cas où $ride->{'get' . ucfirst($key)}() est un objet entité
+            if (is_object($ride->{'get' . ucfirst($key)}())) {
+                if ($ride->{'get' . ucfirst($key)}()->getId() === $value) {
+                    unset($dataRequestValidated[$key]);
+                }
+            }
+        }
+        //On vérifie que $dataRequestValidated n'est pas un tableau vide
+        if (empty($dataRequestValidated)) {
             return new JsonResponse(null, Response::HTTP_NO_CONTENT);
         }
 
-        // Liste des champs modifiables
-        $champsModifiables = [
-            "vehicle", "startingAddress", "arrivalAddress",
-            "startingAt", "arrivalAt", "price", "nbPlacesAvailable"
-        ];
 
         // Récupération des passagers
         $passengers = $ride->getPassenger();
         $passengerCount = $passengers->count();
+        $notifyPassengersAboutRideUpdate = false;
 
-        //on supprime de $dataRequest les champs inchangés de $ride
-
-
-        // Validation des données de la requête
-        $validationResult = $this->rideService->validateRideUpdateData(
-            $ride,
-            $dataRequest,
-            $champsModifiables,
-            $passengerCount,
-            $user
-        );
-        if ($validationResult !== true) {
-            return new JsonResponse(['message' => $validationResult], Response::HTTP_BAD_REQUEST);
+        //Si le véhicule est à changer, on vérifie qu'il existe et qu'il appartient au user
+        if (isset($dataRequestValidated['vehicle'])) {
+            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $dataRequestValidated['vehicle'], 'owner' => $user->getId()]);
+            if (!$vehicle)
+            {
+                return new JsonResponse(["message" => "Le véhicule n'existe pas ou n'appartient pas à l'utilisateur"], Response::HTTP_BAD_REQUEST);
+            }
+            $ride->setVehicle($vehicle);
+            //S'il y a des passagers, on les notifiera une fois flush
+            if ($passengerCount > 0 ) { $notifyPassengersAboutRideUpdate = true; }
         }
+
+        // Vérification du nombre de places
+        if (isset($dataRequest['nbPlacesAvailable'])) {
+            //Si le nombre de places à mettre à jour est <= 0.
+            if ($dataRequest['nbPlacesAvailable'] <= 0) {
+                return new JsonResponse(["message" => "Vous ne pouvez pas mettre 0 place disponible. Annulez ou supprimez le covoiturage."], Response::HTTP_BAD_REQUEST);
+            }
+            //Si on veut mettre plus de place disponible que de place dans la voiture
+            if ($dataRequest['nbPlacesAvailable'] > $ride->getVehicle()->getMaxNbPlacesAvailable()) {
+                return new JsonResponse(["message" => "Il n'y a pas assez de place dans la voiture pour accueillir autant de monde."], Response::HTTP_BAD_REQUEST);
+            }
+            //Si on veut mettre moins de place disponible que de passager déjà inscrit
+            if ($passengerCount > $dataRequest['nbPlacesAvailable']) {
+                return new JsonResponse(["message" => "Vous ne pouvez pas mettre moins de places que de participants déjà inscrits"], Response::HTTP_BAD_REQUEST);
+            }
+            $ride->setNbPlacesAvailable($dataRequest['nbPlacesAvailable']);
+        }
+        //S'il y a des passagers, on ne peut pas modifier le tarif
+        if (isset($dataRequest['price'])) {
+            if ($passengerCount > 0) {
+                return new JsonResponse(["message" => "Le prix ne peut pas être modifié lorsqu'il y a au moins un passager inscrit"], Response::HTTP_BAD_REQUEST);
+            }
+            $ride->setPrice($dataRequest['price']);
+        }
+
 
         // Mise à jour de l'entité
-        $this->rideService->updateRideEntity($ride, $dataRequest);
+        $ride->setUpdatedAt(new DateTimeImmutable());
 
-        // Notification des passagers si nécessaire
-        if ($passengerCount > 0) {
-            $this->rideService->notifyPassengersAboutRideUpdate($ride, $passengers);
-        }
+        $this->manager->persist($ride);
+        $this->manager->flush();
+
 
         // Mise à jour dans MongoDB
         $this->rideService->updateRideInMongo($ride);
+
+        // Notification des passagers si le véhicule est changé
+        if ($passengerCount > 0 && $notifyPassengersAboutRideUpdate) {
+            $this->rideService->notifyPassengersAboutRideUpdate($ride, $passengers);
+        }
 
         return new JsonResponse(['message' => 'Covoiturage modifié avec succès'], Response::HTTP_OK);
     }
@@ -410,9 +444,9 @@ final class RideController extends AbstractController
         response: 404,
         description: 'Covoiturage non trouvé'
     )]
-    public function delete(Ride $ride): JsonResponse // Injection directe de l'entité
+    public function delete(Ride $ride): JsonResponse
     {
-        //si pas de passager
+        //si des passagers inscrits, on ne peut pas le supprimer
         if ($ride->getPassenger()->count() > 0) {
             return new JsonResponse(['message' => 'Ce covoiturage ne peut pas être supprimé car il y a des passagers inscrits. Vous pouvez par contre l\'annuler'], Response::HTTP_FORBIDDEN);
         }
