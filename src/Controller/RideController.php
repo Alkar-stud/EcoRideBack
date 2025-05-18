@@ -57,13 +57,13 @@ final class RideController extends AbstractController
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [new Property(
                     property: "startingAddress",
-                    type: "string",
-                    example: "nom de rue ville"
+                    type: "json",
+                    example: "{\"street\": \"nom de la rue\", \"postcode\": \"75000\", \"city\": \"ville\"}"
                 ),
                     new Property(
                         property: "arrivalAddress",
-                        type: "string",
-                        example: "nom de rue ville"
+                        type: "json",
+                        example: "{\"street\": \"nom de la rue\", \"postcode\": \"75000\", \"city\": \"ville\"}"
                     ),
                     new Property(
                         property: "startingAt",
