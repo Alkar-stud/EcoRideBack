@@ -13,10 +13,10 @@ class MongoRide
     #[MongoDB\Field(type: "int")]
     private $rideId;
 
-    #[MongoDB\Field(type: "string")]
+    #[MongoDB\Field(type: "hash")]
     private $startingAddress;
 
-    #[MongoDB\Field(type: "string")]
+    #[MongoDB\Field(type: "hash")]
     private $arrivalAddress;
 
     #[MongoDB\Field(type: "date")]
@@ -62,23 +62,23 @@ class MongoRide
         return $this;
     }
 
-    public function getStartingAddress(): ?string
+    public function getStartingAddress(): ?array
     {
         return $this->startingAddress;
     }
 
-    public function setStartingAddress(string $startingAddress): self
+    public function setStartingAddress(array $startingAddress): self
     {
         $this->startingAddress = $startingAddress;
         return $this;
     }
 
-    public function getArrivalAddress(): ?string
+    public function getArrivalAddress(): ?array
     {
         return $this->arrivalAddress;
     }
 
-    public function setArrivalAddress(string $arrivalAddress): self
+    public function setArrivalAddress(array $arrivalAddress): self
     {
         $this->arrivalAddress = $arrivalAddress;
         return $this;

@@ -7,14 +7,12 @@ use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
-use App\Repository\EcorideRepository;
 use App\Service\MongoService;
 use App\Service\RideService;
 use App\Service\AddressValidator;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
-use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Attribute\Areas;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes\MediaType;
@@ -44,7 +42,6 @@ final class RideController extends AbstractController
         private readonly MongoService           $mongoService,
         private readonly RideService            $rideService,
         private readonly AddressValidator       $addressValidator,
-        private readonly EcorideRepository      $ecorideRepository,
     )
     {
     }
@@ -158,10 +155,22 @@ final class RideController extends AbstractController
         $this->manager->flush();
 
         // Ajouter les préférences sérialisées dans MongoDB
+        $startingAddressArray = json_decode($ride->getStartingAddress(), true);
+        $arrivalAddressArray = json_decode($ride->getArrivalAddress(), true);
+
+        // Ajout dans MongoDB
         $this->mongoService->add([
             'rideId' => $ride->getId(),
-            'startingAddress' => $ride->getStartingAddress(),
-            'arrivalAddress' => $ride->getArrivalAddress(),
+            'startingAddress' => [
+                'street' => $startingAddressArray['street'],
+                'postcode' => $startingAddressArray['postcode'],
+                'city' => $startingAddressArray['city']
+            ],
+            'arrivalAddress' => [
+                'street' => $arrivalAddressArray['street'],
+                'postcode' => $arrivalAddressArray['postcode'],
+                'city' => $arrivalAddressArray['city']
+            ],
             'startingAt' => $ride->getStartingAt(),
             'arrivalAt' => $ride->getArrivalAt(),
             'duration' => ($ride->getArrivalAt()->diff($ride->getStartingAt())->h * 60) + $ride->getArrivalAt()->diff($ride->getStartingAt())->i,
@@ -205,7 +214,7 @@ final class RideController extends AbstractController
         description: 'Covoiturages trouvés avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read'])
     )]
-    public function showAllOwner(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
+    public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
         //Récupération du numéro de page et la limite par page
         $page = max(1, $request->query->getInt('page', 1));
@@ -267,7 +276,7 @@ final class RideController extends AbstractController
         description: 'Covoiturage trouvé avec succès',
         content: new Model(type: Ride::class, groups: ['trip_read'])
     )]
-    public function showByIdToOwner(#[CurrentUser] ?User $user, int $id): JsonResponse
+    public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
         $trip = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
 

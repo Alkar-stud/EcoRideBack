@@ -29,8 +29,8 @@ class MongoService
         // Création et hydratation de l'objet MongoRide
         $ride = new MongoRide();
         $ride->setRideId($data['rideId']);
-        $ride->setStartingAddress($data['startingAddress']);
-        $ride->setArrivalAddress($data['arrivalAddress']);
+        $ride->setStartingAddress($data['startingAddress']);  //Doit être un array ['street', 'postcode', 'city']
+        $ride->setArrivalAddress($data['arrivalAddress']); //Doit être un array ['street', 'postcode', 'city']
         $ride->setStartingAt($data['startingAt']); // Doit être un DateTimeInterface
         $ride->setArrivalAt($data['arrivalAt']); // Doit être un DateTimeInterface
         $ride->setDuration($data['duration']);

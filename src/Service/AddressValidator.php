@@ -56,7 +56,10 @@ class AddressValidator
 
             // Vérifier que les données retournées correspondent aux données d'entrée
             if (empty($street) || empty($city) || !str_contains(strtolower($address), strtolower($city))) {
-                return ['error' => 'Adresse invalide : les données retournées ne correspondent pas aux données d\'entrée'];
+                /*
+                 * Si les données retournées ne correspondent pas aux données d\'entrée, c'est que l'adresse n'a pas été trouvée
+                 */
+                return ['error' => 'Adresse invalide'];
             }
 
             return [
