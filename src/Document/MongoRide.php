@@ -37,7 +37,7 @@ class MongoRide
     #[MongoDB\Field(type: "int")]
     private $nbParticipant = 0;
 
-    #[MongoDB\Field(type: "hash")]
+    #[MongoDB\Field(type: "int")]
     private $driver;
 
     #[MongoDB\Field(type: "hash")]
@@ -150,12 +150,12 @@ class MongoRide
         return $this;
     }
 
-    public function getDriver(): ?array
+    public function getDriver(): ?int
     {
         return $this->driver;
     }
 
-    public function setDriver(array $driver): self
+    public function setDriver(int $driver): self
     {
         $this->driver = $driver;
         return $this;

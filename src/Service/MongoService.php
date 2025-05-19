@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Document\MongoRide;
+use DateTime;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Exception;
@@ -116,6 +117,27 @@ class MongoService
         return true;
     }
 
+    public function findBySearch(array $dataRequest): ?array
+    {
+        //$queryBuilder = $this->documentManager->createQueryBuilder(MongoRide::class);
+
+dd($dataRequest);
+
+
+
+
+        if (!$rides || empty($rides)) {
+            return null;
+        }
+
+        // Convertir la collection d'objets en tableau
+        $result = [];
+
+
+        return $result;
+    }
+
+
     public function findById(int $id): ?array
     {
         $ride = $this->documentManager->getRepository(MongoRide::class)->findOneBy(['rideId' => $id]);
@@ -124,20 +146,20 @@ class MongoService
             return null;
         }
 
-        // Convertir l'objet en tableau
+        // Convertir l'objet en tableau avec les dates correctement formatées
         return [
             'rideId' => $ride->getRideId(),
             'startingAddress' => $ride->getStartingAddress(),
             'arrivalAddress' => $ride->getArrivalAddress(),
-            'startingAt' => $ride->getStartingAt(),
-            'arrivalAt' => $ride->getArrivalAt(),
+            'startingAt' => $ride->getStartingAt() instanceof DateTime ? $ride->getStartingAt()->format('Y-m-d H:i:s') : $ride->getStartingAt(),
+            'arrivalAt' => $ride->getArrivalAt() instanceof DateTime ? $ride->getArrivalAt()->format('Y-m-d H:i:s') : $ride->getArrivalAt(),
             'duration' => $ride->getDuration(),
             'price' => $ride->getPrice(),
             'nbPlacesAvailable' => $ride->getNbPlacesAvailable(),
             'driver' => $ride->getDriver(),
             'vehicle' => $ride->getVehicle(),
-            'createdDate' => $ride->getCreatedDate(),
-            'updatedDate' => $ride->getUpdatedDate(),
+            'createdDate' => $ride->getCreatedDate() instanceof DateTime ? $ride->getCreatedDate()->format('Y-m-d H:i:s') : $ride->getCreatedDate(),
+            'updatedDate' => $ride->getUpdatedDate() instanceof DateTime ? $ride->getUpdatedDate()->format('Y-m-d H:i:s') : $ride->getUpdatedDate(),
         ];
     }
 

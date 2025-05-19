@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\Ride;
 use App\Entity\User;
 use App\Entity\Vehicle;
+use App\Enum\EnergyEnum;
 use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
 use DateTimeImmutable;
@@ -86,8 +87,8 @@ class RideService
         if ($startingAt >= $arrivalAt) {
             return ['error' => 'DatesHoursInconsistent'];
         }
-        // Vérifier que les deux dates sont dans le futur
-        //on ne teste que $startingAt puisque déjà avant $arrivalAt avec le test précédent
+        // Vérifier que les deux dates sont dans le futur,
+        // on ne teste que $startingAt puisque déjà avant $arrivalAt avec le test précédent
         $now = new DateTimeImmutable();
         if ($startingAt < $now) {
             return ['error' => 'StartingDateInPast'];
@@ -140,6 +141,56 @@ class RideService
             );
         }
     }
+
+    /**
+     * Ajouter les données dans MongoDB
+     */
+    public function addRideInMongoDB(Ride $ride, $userID): void
+    {
+        // Ajouter les préférences sérialisées dans MongoDB
+        $startingAddressArray = json_decode($ride->getStartingAddress(), true);
+        $arrivalAddressArray = json_decode($ride->getArrivalAddress(), true);
+
+        try {
+            $this->mongoService->add([
+                'rideId' => $ride->getId(),
+                'startingAddress' => [
+                    'street' => $startingAddressArray['street'],
+                    'postcode' => $startingAddressArray['postcode'],
+                    'city' => $startingAddressArray['city']
+                ],
+                'arrivalAddress' => [
+                    'street' => $arrivalAddressArray['street'],
+                    'postcode' => $arrivalAddressArray['postcode'],
+                    'city' => $arrivalAddressArray['city']
+                ],
+                'startingAt' => [
+                    'date' => $ride->getStartingAt()->format('d/m/Y'),
+                    'hour' => $ride->getStartingAt()->format('H:i')
+                ],
+                'arrivalAt' => $ride->getArrivalAt(),
+                'duration' => ($ride->getArrivalAt()->diff($ride->getStartingAt())->h * 60) + $ride->getArrivalAt()->diff($ride->getStartingAt())->i,
+                'price' => $ride->getPrice(),
+                'nbPlacesAvailable' => $ride->getNbPlacesAvailable(),
+                // ID utilisateur
+                'driver' => $userID,
+                // Données véhicule
+                'vehicle' => [
+                    'brand' => $ride->getVehicle()->getBrand(),
+                    'model' => $ride->getVehicle()->getModel(),
+                    'color' => $ride->getVehicle()->getColor(),
+                    // Vérifier le type avant d'accéder aux propriétés
+                    'energy' => $ride->getVehicle()->getEnergy(),
+                    'isEco' => is_object($ride->getVehicle()->getEnergy())
+                        ? $ride->getVehicle()->getEnergy()->name === 'ECO'
+                        : $ride->getVehicle()->getEnergy() === 'ECO',
+                ],
+            ]);
+        } catch (MongoDBException|Throwable $e) {
+
+        }
+    }
+
 
     /**
      * Met à jour les données dans MongoDB

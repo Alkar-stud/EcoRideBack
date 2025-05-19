@@ -39,11 +39,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $password = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $photo = null;
 
     #[ORM\Column]
@@ -51,7 +51,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $credits = 0;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?int $grade = null;
 
     #[ORM\Column]
@@ -81,7 +81,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Preferences>
      */
     #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_search'])]
     private Collection $userPreferences;
 
     /**

@@ -5,16 +5,13 @@ namespace App\Controller;
 
 use App\Entity\Ride;
 use App\Entity\User;
-use App\Entity\Vehicle;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
 use App\Repository\EcorideRepository;
 use App\Service\MongoService;
 use App\Service\RideService;
 use App\Service\AddressValidator;
-use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
-use Exception;
 use Nelmio\ApiDocBundle\Attribute\Areas;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes\MediaType;
@@ -26,13 +23,12 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Contracts\Service\Attribute\Required;
 
-#[Route('/api/ride/participation', name: 'app_api_ride_participation_')]
+
+#[Route('/api/ride', name: 'app_api_ride_')]
 #[OA\Tag(name: 'RideParticipation')]
 #[Areas(["default"])]
 final class RideParticipationController extends AbstractController
@@ -50,9 +46,9 @@ final class RideParticipationController extends AbstractController
     {
     }
 
-    #[Route('/search', name: 'search', methods: ['GET'])]
-    #[OA\Get(
-        path:"/api/ride/participation/search",
+    #[Route('/search', name: 'search', methods: ['POST'])]
+    #[OA\Post(
+        path:"/api/ride/search",
         summary:"Recherche de covoiturages avec critères. Lieu de départ et d'arrivée ainsi que la date sont obligatoires",
         requestBody :new RequestBody(
             description: "Critères de recherche de covoiturages.",
@@ -74,7 +70,7 @@ final class RideParticipationController extends AbstractController
                         example: "2025-07-01 10:00:00"
                     ),
                     new Property(
-                        property: "duration",
+                        property: "maxDuration",
                         type: "integer",
                         example: 120
                     ),
@@ -84,7 +80,7 @@ final class RideParticipationController extends AbstractController
                         example: 15
                     ),
                     new Property(
-                        property: "DriverGrade",
+                        property: "MinDriverGrade",
                         type: "integer",
                         example: 3
                     ),
@@ -103,7 +99,133 @@ final class RideParticipationController extends AbstractController
     )]
     public function search(Request $request): JsonResponse
     {
+        $dataRequest = $this->serializer->decode($request->getContent(), 'json');
 
+        //Vérifications
+        //Champs obligatoire, city de startingAddress, city de  arrivalAddress et date
+        if (!isset($dataRequest['startingAddress']) || !isset($dataRequest['arrivalAddress']) || !isset($dataRequest['startingAt']))
+        {
+            return new JsonResponse(['message' => 'Champs obligatoires manquants'], Response::HTTP_BAD_REQUEST);
+        }
+        //transformation des champs startingAddress en street, postcode et city
+        $dataRequest['startingStreet'] = $dataRequest['startingAddress']['street'];
+        $dataRequest['startingPostCode'] = $dataRequest['startingAddress']['postcode'];
+        $dataRequest['startingCity'] = $dataRequest['startingAddress']['city'];
+        unset($dataRequest['startingAddress']);
+        $dataRequest['arrivalStreet'] = $dataRequest['arrivalAddress']['street'];
+        $dataRequest['arrivalPostCode'] = $dataRequest['arrivalAddress']['postcode'];
+        $dataRequest['arrivalCity'] = $dataRequest['arrivalAddress']['city'];
+        unset($dataRequest['arrivalAddress']);
+
+        //Champs facultatifs : isEco, maxPrice, maxDuration, MinDriverGrade
+
+        //chercher à l'aide de $dataRequest
+        $rides = $this->repository->findBySomeField($dataRequest);
+
+        if(!$rides) {
+            return new JsonResponse(['message' => 'Aucun covoiturage trouvé'], Response::HTTP_NOT_FOUND);
+        }
+
+
+        $jsonContent = $this->serializer->serialize($rides, 'json', ['groups' => 'ride_search']);
+
+        return new JsonResponse($jsonContent, Response::HTTP_OK, [], true);
+
+
+
+    }
+
+    #[Route('/{id}/addUser', name: 'addUser', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/ride/{Id}/addUser",
+        summary:"Ajout d'un participant",
+
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Vous avez été ajouté à ce covoiturage'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
+    #[OA\Response(
+        response: 402,
+        description: 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'
+    )]
+    public function addUser(#[CurrentUser] ?User $user, int $id): JsonResponse
+    {
+        //Récupération du covoiturage
+        $ride = $this->repository->findOneBy(['id' => $id]);
+
+        if (!$ride) {
+            return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
+        }
+
+        //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+        if ($ride->getStatus() === RideStatus::getDefaultStatus())
+        {
+            //Si le $user fait partie des participants
+            if ($ride->getPassenger()->contains($user)) {
+                // L'utilisateur fait partie des participants
+                return new JsonResponse(['message' => 'Vous êtes déjà inscrit à ce covoiturage.'], Response::HTTP_OK);
+            }
+            //Vérification que le solde de credit est suffisant
+            if ($user->getCredits() < $ride->getPrice()) {
+                return new JsonResponse(['message' => 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'], Response::HTTP_PAYMENT_REQUIRED);
+            }
+            //On retire les crédits au passager
+            $user->setCredits($user->getCredits() - $ride->getPrice());
+            $ride->addPassenger($user);
+            $this->manager->flush();
+
+            //On met à jour nbPlaceRemaining et nbParticipant dans MongoDB
+            $users = $ride->getPassenger();
+            count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
+
+            return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
+        }
+        return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
+    }
+
+    #[Route('/{rideId}/removeUser', name: 'removeUser', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/ride/{rideId}/removeUser",
+        summary:"Retrait d'un participant",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Vous avez été retiré de ce covoiturage'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
+    public function removeUser(#[CurrentUser] ?User $user, int $rideId): JsonResponse
+    {
+        //Récupération du covoiturage
+        $ride = $this->repository->findOneBy(['id' => $rideId]);
+
+        //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+        if ($ride->getStatus() === RideStatus::getDefaultStatus())
+        {
+            //Si le $user fait partie des participants
+            if (!$ride->getPassenger()->contains($user)) {
+                // L'utilisateur ne fait pas partie des participants
+                return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
+            }
+            //On recrédite le user
+            $user->setCredits($user->getCredits() + $ride->getNbCredit());
+            //On met à jour le nombre de places restantes
+            $ride->setNbPlaceRemaining($ride->getNbPlaceRemaining() + 1);
+            $ride->removePassager($user);
+            $this->manager->flush();
+
+
+
+            return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
+        }
+        return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
     }
 
 }

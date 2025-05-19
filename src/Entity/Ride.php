@@ -15,31 +15,47 @@ class Ride
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
     #[Groups(['ride_read'])]
-    private ?string $startingAddress = null;
+    private ?string $startingStreet = null;
+
+    #[ORM\Column(length: 20)]
+    #[Groups(['ride_read'])]
+    private ?string $startingPostCode = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['ride_read', 'ride_search'])]
+    private ?string $startingCity = null;
+    
+    #[ORM\Column(length: 255)]
     #[Groups(['ride_read'])]
-    private ?string $arrivalAddress = null;
+    private ?string $arrivalStreet = null;
+
+    #[ORM\Column(length: 20)]
+    #[Groups(['ride_read'])]
+    private ?string $arrivalPostCode = null;
+
+    #[ORM\Column(length: 255)]
+    #[Groups(['ride_read', 'ride_search'])]
+    private ?string $arrivalCity = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?DateTimeImmutable $arrivalAt = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?int $price = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?int $nbPlacesAvailable = null;
 
     #[ORM\Column(nullable: true)]
@@ -54,11 +70,12 @@ class Ride
 
     #[ORM\ManyToOne(inversedBy: 'ridesDriver')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?User $driver = null;
 
     #[ORM\ManyToOne(inversedBy: 'ridesVehicle')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?Vehicle $vehicle = null;
 
     #[ORM\Column]
@@ -84,26 +101,74 @@ class Ride
         return $this->id;
     }
 
-    public function getStartingAddress(): ?string
+    public function getStartingStreet(): ?string
     {
-        return $this->startingAddress;
+        return $this->startingStreet;
     }
 
-    public function setStartingAddress(string $startingAddress): static
+    public function setStartingStreet(string $startingStreet): static
     {
-        $this->startingAddress = $startingAddress;
+        $this->startingStreet = $startingStreet;
 
         return $this;
     }
 
-    public function getArrivalAddress(): ?string
+    public function getStartingPostCode(): ?string
     {
-        return $this->arrivalAddress;
+        return $this->startingPostCode;
     }
 
-    public function setArrivalAddress(string $arrivalAddress): static
+    public function setStartingPostCode(string $startingPostCode): static
     {
-        $this->arrivalAddress = $arrivalAddress;
+        $this->startingPostCode = $startingPostCode;
+
+        return $this;
+    }
+
+    public function getStartingCity(): ?string
+    {
+        return $this->startingCity;
+    }
+
+    public function setStartingCity(string $startingCity): static
+    {
+        $this->startingCity = $startingCity;
+
+        return $this;
+    }
+
+    public function getArrivalStreet(): ?string
+    {
+        return $this->arrivalStreet;
+    }
+
+    public function setArrivalStreet(string $arrivalStreet): static
+    {
+        $this->arrivalStreet = $arrivalStreet;
+
+        return $this;
+    }
+
+    public function getArrivalPostCode(): ?string
+    {
+        return $this->arrivalPostCode;
+    }
+
+    public function setArrivalPostCode(string $arrivalPostCode): static
+    {
+        $this->arrivalPostCode = $arrivalPostCode;
+
+        return $this;
+    }
+
+    public function getArrivalCity(): ?string
+    {
+        return $this->arrivalCity;
+    }
+
+    public function setArrivalCity(string $arrivalCity): static
+    {
+        $this->arrivalCity = $arrivalCity;
 
         return $this;
     }

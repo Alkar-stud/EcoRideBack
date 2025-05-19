@@ -2,10 +2,10 @@
 
 namespace App\Controller;
 
-use App\Entity\MailsType;
 use App\Entity\Preferences;
 use App\Entity\User;
 use App\Service\MailService;
+use App\Repository\EcorideRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -43,6 +43,7 @@ class SecurityController extends AbstractController
         private readonly SerializerInterface         $serializer,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly MailService                 $mailService,
+        private readonly EcorideRepository           $ecorideRepository,
     )
     {
     }
@@ -109,6 +110,14 @@ class SecurityController extends AbstractController
             return new JsonResponse(['message' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial.'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Ajout des crédits de bienvenue s'il y en a
+        $ecorideTotalCredit   = $this->ecorideRepository->findOneByLibelle('TOTAL_CREDIT');
+        $ecorideWelcomeCredit = $this->ecorideRepository->findOneByLibelle('WELCOME_CREDIT');
+        //Mise à jour du crédit total
+        $ecorideTotalCredit->setParameterValue($ecorideTotalCredit->getParameterValue() - $ecorideWelcomeCredit->getParameterValue());
+
+        $user->setCredits($ecorideWelcomeCredit->getParameterValue());
+
 
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());
@@ -131,8 +140,8 @@ class SecurityController extends AbstractController
         //persister les préférences
         $this->manager->persist($smokingPreference);
         $this->manager->persist($petsPreference);
-        //persister l'utilisateur
 
+        //persister l'utilisateur
         $this->manager->persist($user);
         $this->manager->flush();
 

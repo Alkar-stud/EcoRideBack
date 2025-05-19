@@ -27,6 +27,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
 
 #[Route('/api/ride', name: 'app_api_ride_')]
@@ -45,7 +46,6 @@ final class RideController extends AbstractController
     )
     {
     }
-
 
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[OA\Post(
@@ -96,8 +96,9 @@ final class RideController extends AbstractController
     #[OA\Response(
         response: 201,
         description: 'Covoiturage ajouté avec succès',
-        content: new Model(type: Ride::class, groups: ['trip_read'])
+        content: new Model(type: Ride::class, groups: ['ride_read'])
     )]
+    #[IsGranted('ROLE_USER')]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         // Récupération des données de la requête
@@ -115,25 +116,29 @@ final class RideController extends AbstractController
 
         $ride = $this->serializer->deserialize($request->getContent(), Ride::class, 'json');
 
-        $startingAddressValidation = $this->addressValidator->validateAndDecomposeAddress($ride->getStartingAddress());
+        $startingAddressValidation = $this->addressValidator->validateAndDecomposeAddress($data['startingAddress']);
         if (isset($startingAddressValidation['error'])) {
             return new JsonResponse(['error' => 'startingAddress: ' . $startingAddressValidation['error']], Response::HTTP_BAD_REQUEST);
         }
-        $ride->setStartingAddress(json_encode($startingAddressValidation, true));
+        $ride->setStartingStreet($startingAddressValidation['street']);
+        $ride->setStartingPostCode($startingAddressValidation['postcode']);
+        $ride->setStartingCity($startingAddressValidation['city']);
 
-        $arrivalAddressValidation = $this->addressValidator->validateAndDecomposeAddress($ride->getArrivalAddress());
+        $arrivalAddressValidation = $this->addressValidator->validateAndDecomposeAddress($data['arrivalAddress']);
         if (isset($arrivalAddressValidation['error'])) {
             return new JsonResponse(['error' => 'arrivalAddress: ' . $arrivalAddressValidation['error']], Response::HTTP_BAD_REQUEST);
         }
-        $ride->setArrivalAddress(json_encode($arrivalAddressValidation, true));
+        $ride->setArrivalStreet($arrivalAddressValidation['street']);
+        $ride->setArrivalPostCode($arrivalAddressValidation['postcode']);
+        $ride->setArrivalCity($arrivalAddressValidation['city']);
 
         // Récupération du véhicule
         $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $data['vehicle'], 'owner' => $user->getId()]);
         $ride->setVehicle($vehicle);
 
 
-        // Vérification des champs requis
-        $requiredFields = ['startingAddress', 'arrivalAddress', 'startingAt', 'arrivalAt', 'price', 'nbPlacesAvailable', 'vehicle'];
+        // Vérification des autres champs requis
+        $requiredFields = ['startingAt', 'arrivalAt', 'price', 'nbPlacesAvailable'];
 
         foreach ($requiredFields as $field) {
             if (empty($ride->{'get' . ucfirst($field)}())) {
@@ -154,49 +159,6 @@ final class RideController extends AbstractController
         $this->manager->persist($ride);
         $this->manager->flush();
 
-        // Ajouter les préférences sérialisées dans MongoDB
-        $startingAddressArray = json_decode($ride->getStartingAddress(), true);
-        $arrivalAddressArray = json_decode($ride->getArrivalAddress(), true);
-
-        // Ajout dans MongoDB
-        $this->mongoService->add([
-            'rideId' => $ride->getId(),
-            'startingAddress' => [
-                'street' => $startingAddressArray['street'],
-                'postcode' => $startingAddressArray['postcode'],
-                'city' => $startingAddressArray['city']
-            ],
-            'arrivalAddress' => [
-                'street' => $arrivalAddressArray['street'],
-                'postcode' => $arrivalAddressArray['postcode'],
-                'city' => $arrivalAddressArray['city']
-            ],
-            'startingAt' => $ride->getStartingAt(),
-            'arrivalAt' => $ride->getArrivalAt(),
-            'duration' => ($ride->getArrivalAt()->diff($ride->getStartingAt())->h * 60) + $ride->getArrivalAt()->diff($ride->getStartingAt())->i,
-            'price' => $ride->getPrice(),
-            'nbPlacesAvailable' => $ride->getNbPlacesAvailable(),
-            // Données utilisateur
-            'driver' => [
-                'id' => $user->getId(),
-                'pseudo' => $user->getPseudo(),
-                'photo' => $user->getPhoto(),
-                'grade' => $user->getGrade(),
-            ],
-            // Données véhicule
-            'vehicle' => [
-                'brand' => $ride->getVehicle()->getBrand(),
-                'model' => $ride->getVehicle()->getModel(),
-                'color' => $ride->getVehicle()->getColor(),
-                // Vérifier le type avant d'accéder aux propriétés
-                'energy' => $ride->getVehicle()->getEnergy(),
-                'isEco' => is_object($ride->getVehicle()->getEnergy())
-                    ? $ride->getVehicle()->getEnergy()->name === 'ECO'
-                    : $ride->getVehicle()->getEnergy() === 'ECO',
-                ],
-        ]);
-
-
         // Réponse
         return new JsonResponse(
             ["message" => "Covoiturage ajouté avec succès"],
@@ -204,7 +166,7 @@ final class RideController extends AbstractController
         );
     }
 
-    #[Route('/list/{state}', name: 'showAllOwner', methods: 'GET')]
+    #[Route('/list/{state}', name: 'showAll', methods: 'GET')]
     #[OA\Get(
         path:"/api/ride/list/{state}",
         summary:"Liste les covoiturages du User selon leur état.",
@@ -214,6 +176,7 @@ final class RideController extends AbstractController
         description: 'Covoiturages trouvés avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read'])
     )]
+    #[IsGranted('ROLE_USER')]
     public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
         //Récupération du numéro de page et la limite par page
@@ -266,38 +229,51 @@ final class RideController extends AbstractController
         return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état pour cet utilisateur.'], Response::HTTP_NOT_FOUND);
     }
 
-    #[Route('/{id}', name: 'show', methods: 'GET')]
+    #[Route('/show/{id}', name: 'show', methods: 'GET')]
     #[OA\Get(
-        path:"/api/ride/{id}",
-        summary:"Récupérer un covoiturage du User avec son ID.",
+        path:"/api/ride/show/{id}",
+        summary:"Récupérer un covoiturage avec son ID.",
     )]
     #[OA\Response(
         response: 200,
         description: 'Covoiturage trouvé avec succès',
-        content: new Model(type: Ride::class, groups: ['trip_read'])
+        content: new Model(type: Ride::class, groups: ['ride_read'])
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Covoiturage n\'existe pas'
     )]
     public function showById(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
-        $trip = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
+        $ride = $this->repository->findOneBy(['id' => $id]);
 
-        if (!$trip) {
+        if (!$ride) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
-        $responseData = $this->serializer->serialize(
-            $trip,
-            'json',
-            ['groups' => ['ride_read']]
-        );
+        if ($user) {
+            $responseData = $this->serializer->serialize(
+                $ride,
+                'json',
+                ['groups' => ['ride_read', 'ride_detail']]
+            );
+        } else {
+            $responseData = $this->serializer->serialize(
+                $ride,
+                'json',
+                ['groups' => ['ride_read']]
+            );
+        }
+
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
 
     /**
      * @throws Exception|TransportExceptionInterface
      */
-    #[Route('/{id}/update', name: 'edit', methods: ['PUT'])]
+    #[Route('/update/{id}', name: 'edit', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/ride/{id}/update",
+        path:"/api/ride/update/{id}",
         summary:"Modification d'un covoiturage non démarré, un mail est envoyé à tous les passagers",
         requestBody :new RequestBody(
             description: "Données du statut du covoiturage.",
@@ -335,6 +311,7 @@ final class RideController extends AbstractController
         response: 404,
         description: 'Covoiturage non trouvé.'
     )]
+    #[IsGranted('ROLE_USER')]
     public function edit(#[CurrentUser] ?User $user, Request $request, int $id): JsonResponse
     {
         //Récupération de l'entité à modifier
@@ -456,6 +433,7 @@ final class RideController extends AbstractController
         response: 404,
         description: 'Covoiturage non trouvé'
     )]
+    #[IsGranted('ROLE_USER')]
     public function delete(Ride $ride): JsonResponse
     {
         //si des passagers inscrits, on ne peut pas le supprimer

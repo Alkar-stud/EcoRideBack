@@ -21,27 +21,27 @@ class Vehicle
     private ?int $id = null;
 
     #[ORM\Column(length: 100)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $brand = null;
 
     #[ORM\Column(length: 100)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $model = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $color = null;
 
     #[ORM\Column(length: 25)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_detail'])]
     private ?string $licensePlate = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_detail'])]
     private ?DateTime $licenseFirstDate = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['user_account', 'ride_read'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $energy = null;
 
     #[ORM\Column]
