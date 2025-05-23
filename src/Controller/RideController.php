@@ -7,7 +7,6 @@ use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
-use App\Service\MongoService;
 use App\Service\RideService;
 use App\Service\AddressValidator;
 use DateTimeImmutable;
@@ -29,6 +28,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 
 #[Route('/api/ride', name: 'app_api_ride_')]
 #[OA\Tag(name: 'Ride')]
@@ -40,13 +43,20 @@ final class RideController extends AbstractController
         private readonly EntityManagerInterface $manager,
         private readonly RideRepository         $repository,
         private readonly SerializerInterface    $serializer,
-        private readonly MongoService           $mongoService,
         private readonly RideService            $rideService,
         private readonly AddressValidator       $addressValidator,
     )
     {
     }
 
+    /**
+     * @throws RedirectionExceptionInterface
+     * @throws DecodingExceptionInterface
+     * @throws ClientExceptionInterface
+     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     * @throws ServerExceptionInterface
+     * @throws Exception
+     */
     #[Route('/add', name: 'add', methods: ['POST'])]
     #[OA\Post(
         path:"/api/ride/add",
@@ -401,16 +411,11 @@ final class RideController extends AbstractController
             $ride->setPrice($dataRequest['price']);
         }
 
-
         // Mise à jour de l'entité
         $ride->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->persist($ride);
         $this->manager->flush();
-
-
-        // Mise à jour dans MongoDB
-        $this->rideService->updateRideInMongo($ride);
 
         // Notification des passagers si le véhicule est changé
         if ($passengerCount > 0 && $notifyPassengersAboutRideUpdate) {
@@ -440,8 +445,6 @@ final class RideController extends AbstractController
         if ($ride->getPassenger()->count() > 0) {
             return new JsonResponse(['message' => 'Ce covoiturage ne peut pas être supprimé car il y a des passagers inscrits. Vous pouvez par contre l\'annuler'], Response::HTTP_FORBIDDEN);
         }
-        //Suppression de MongoDB
-        $this->mongoService->delete($ride->getId());
 
         $this->manager->remove($ride);
         $this->manager->flush();

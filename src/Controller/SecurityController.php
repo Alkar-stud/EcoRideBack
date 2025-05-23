@@ -149,7 +149,7 @@ class SecurityController extends AbstractController
         $this->manager->flush();
 
         //Mise à jour des mouvements de crédits sur EcoRide
-        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'add', 'registrationUser');
+        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
 
         //On envoie le mail type 'accountUserCreate' à l'utilisateur
         $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);

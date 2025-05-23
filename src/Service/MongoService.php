@@ -2,7 +2,12 @@
 
 namespace App\Service;
 
+use App\Document\MongoEcoRideCreditsTemp;
+use App\Document\MongoRideCredit;
+use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\MongoDBException;
+use Throwable;
 
 
 class MongoService
@@ -17,11 +22,15 @@ class MongoService
      * Pour ajouter le "log" des mouvements de credits, user ajoute à son compte, user dépense pour participer à un trajet, user reprend, car annule sa participation
      * user-driver gagne parce que covoiturage est au statut FINISHED, EcoRide retire sa commission quand covoiturage passe au statut FINISHED
      */
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
     function addMovementCreditsForRides($ride, $user, $action, $reason): bool
     {
         $dm = $this->documentManager;
 
-        $mongoRideCredit = new \App\Document\MongoRideCredit();
+        $mongoRideCredit = new MongoRideCredit();
         $mongoRideCredit->setRideId($ride->getId());
         $mongoRideCredit->setUser($user->getId());
         if ($action == 'add') {
@@ -35,7 +44,7 @@ class MongoService
         }
 
         $mongoRideCredit->setReason($reason);
-        $mongoRideCredit->setCreatedDate(new \DateTimeImmutable());
+        $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
 
         $dm->persist($mongoRideCredit);
         $dm->flush();
@@ -49,18 +58,22 @@ class MongoService
     /*
      * Pour ajouter le "log" des mouvements de credits registration, ajout du crédit de bienvenue
      */
-    function addMovementCreditsForRegistration($valeur, $user, $action, $reason): bool
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
+    function addMovementCreditsForRegistration($valeur, $user, $reason): bool
     {
         $dm = $this->documentManager;
 
-        $mongoRideCredit = new \App\Document\MongoRideCredit();
+        $mongoRideCredit = new MongoRideCredit();
         $mongoRideCredit->setRideId(0);
         $mongoRideCredit->setUser($user->getId());
         $mongoRideCredit->setAddCredit($valeur);
         $mongoRideCredit->setWithdrawCredit(0);
 
         $mongoRideCredit->setReason($reason);
-        $mongoRideCredit->setCreatedDate(new \DateTimeImmutable());
+        $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
 
         $dm->persist($mongoRideCredit);
         $dm->flush();
@@ -68,11 +81,15 @@ class MongoService
         return true;
     }
 
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
     function updateCreditsEcoRide($montant): true
     {
         $dm = $this->documentManager;
 
-        $repo = $dm->getRepository(\App\Document\MongoEcoRideCreditsTemp::class);
+        $repo = $dm->getRepository(MongoEcoRideCreditsTemp::class);
 
         $libelle = 'TOTAL_CREDIT_TEMP';
         $creditTemp = $repo->findOneBy(['libelle' => $libelle]);
@@ -80,12 +97,12 @@ class MongoService
         if ($creditTemp) {
             $nouvelleValeur = $creditTemp->getValeur() + $montant;
             $creditTemp->setValeur($nouvelleValeur);
-            $creditTemp->setUpdatedDate(new \DateTimeImmutable());
+            $creditTemp->setUpdatedDate(new DateTimeImmutable());
         } else {
-            $creditTemp = new \App\Document\MongoEcoRideCreditsTemp();
+            $creditTemp = new MongoEcoRideCreditsTemp();
             $creditTemp->setLibelle($libelle);
             $creditTemp->setValeur($montant);
-            $creditTemp->setUpdatedDate(new \DateTimeImmutable());
+            $creditTemp->setUpdatedDate(new DateTimeImmutable());
             $dm->persist($creditTemp);
 
         }

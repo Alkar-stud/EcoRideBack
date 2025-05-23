@@ -7,10 +7,8 @@ use App\Entity\Ride;
 use App\Entity\User;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
-use App\Repository\EcorideRepository;
 use App\Service\MongoService;
-use App\Service\RideService;
-use App\Service\AddressValidator;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Nelmio\ApiDocBundle\Attribute\Areas;
 use Nelmio\ApiDocBundle\Attribute\Model;
@@ -26,6 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\SerializerInterface;
+use Throwable;
 
 
 #[Route('/api/ride', name: 'app_api_ride_')]
@@ -39,9 +38,6 @@ final class RideParticipationController extends AbstractController
         private readonly RideRepository         $repository,
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
-        private readonly RideService            $rideService,
-        private readonly AddressValidator       $addressValidator,
-        private readonly EcorideRepository      $ecorideRepository,
     )
     {
     }
@@ -135,6 +131,10 @@ final class RideParticipationController extends AbstractController
 
     }
 
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
     #[Route('/{id}/addUser', name: 'addUser', methods: ['PUT'])]
     #[OA\Put(
         path:"/api/ride/{Id}/addUser",
@@ -179,10 +179,6 @@ final class RideParticipationController extends AbstractController
             $ride->addPassenger($user);
             $this->manager->flush();
 
-            //On met à jour nbPlaceRemaining et nbParticipant dans MongoDB
-            $users = $ride->getPassenger();
-            count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
-
             //Ajout du prix dans le crédit temp sur mongoDB
 
             $this->mongoService->addMovementCreditsForRides($ride, $user, 'add', 'addPassenger');
@@ -192,6 +188,10 @@ final class RideParticipationController extends AbstractController
         return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
     }
 
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
     #[Route('/{rideId}/removeUser', name: 'removeUser', methods: ['PUT'])]
     #[OA\Put(
         path:"/api/ride/{rideId}/removeUser",
