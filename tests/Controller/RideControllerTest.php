@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use DateTime;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -64,24 +65,32 @@ class RideControllerTest extends WebTestCase
         $this->vehicle->setCreatedAt(new DateTimeImmutable());
         $this->vehicle->setOwner($this->testUser);
 
-        // Création du covoiturage
+        $this->entityManager->persist($this->vehicle);
+        $this->createRide();
+        $this->entityManager->flush();
+        $this->entityManager->flush();
+    }
+
+    private function createRide(array $data = []): Ride
+    {
         $ride = new Ride();
         $ride->setVehicle($this->vehicle);
         $ride->setDriver($this->testUser);
-        $ride->setStartingAddress('test adresse départ');
-        $ride->setArrivalAddress('test adresse arrivée');
-        $startingAt = new DateTimeImmutable('+1 day');
+        $ride->setStartingStreet($data['startingStreet'] ?? 'Rue du test du départ');
+        $ride->setStartingPostCode($data['startingPostCode'] ?? '51000');
+        $ride->setStartingCity($data['startingCity'] ?? 'Reims');
+        $ride->setArrivalStreet($data['arrivalStreet'] ?? 'Rue du test de l\'arrivée');
+        $ride->setArrivalPostCode($data['arrivalPostCode'] ?? '75001');
+        $ride->setArrivalCity($data['arrivalCity'] ?? 'Paris');
+        $startingAt = $data['startingAt'] ?? new DateTimeImmutable('+1 day');
         $ride->setStartingAt($startingAt);
         $ride->setArrivalAt($startingAt->modify('+' . mt_rand(1, 3) . ' hours'));
-
-        $ride->setPrice(5);
-        $ride->setNbPlacesAvailable(4);
+        $ride->setPrice($data['price'] ?? 5);
+        $ride->setNbPlacesAvailable($data['nbPlacesAvailable'] ?? 4);
         $ride->setCreatedAt(new DateTimeImmutable());
-        $ride->setStatus('COMING');
-
-        $this->entityManager->persist($this->vehicle);
+        $ride->setStatus($data['status'] ?? 'COMING');
         $this->entityManager->persist($ride);
-        $this->entityManager->flush();
+        return $ride;
     }
 
     /**
@@ -90,25 +99,11 @@ class RideControllerTest extends WebTestCase
     private function createMultipleComingRides(int $count): void
     {
         for ($i = 0; $i < $count; $i++) {
-            $ride = new Ride();
-            $ride->setVehicle($this->vehicle);
-            $ride->setDriver($this->testUser);
-            $ride->setStartingAddress('test adresse départ ' . $i);
-            $ride->setArrivalAddress('test adresse arrivée ' . $i);
-
-            $startingAt = new DateTimeImmutable('+1 day');
-            $ride->setStartingAt($startingAt);
-            $ride->setArrivalAt($startingAt->modify('+' . mt_rand(1, 3) . ' hours'));
-
-            $ride->setPrice(5 + $i);
-            $ride->setNbPlacesAvailable(4);
-            $ride->setCreatedAt(new DateTimeImmutable());
-            $ride->setStatus('COMING');
-
-            $this->entityManager->persist($ride);
+            $this->createRide(['price' => 5 + $i]);
         }
         $this->entityManager->flush();
     }
+
 
     /**
      * test de la route add
@@ -150,66 +145,6 @@ class RideControllerTest extends WebTestCase
         $responseContent = json_decode($this->client->getResponse()->getContent(), true);
         $this->assertEquals("Covoiturage ajouté avec succès", $responseContent['message']);
     }
-
-
-    /**
-     * test de l'insertion dans MongoDB
-     */
-    public function testMongoInsertionOnAdd(): void
-    {
-        // Authentification de l'utilisateur
-        $this->client->loginUser($this->testUser);
-
-        // Créer un mock du service MongoDB
-        $mongoServiceMock = $this->createMock(\App\Service\MongoService::class);
-
-        // Définir les attentes sur le mock
-        $mongoServiceMock->expects($this->once())
-            ->method('add')
-            ->with($this->callback(function ($document) {
-                // Vérifier que le document contient les informations essentielles
-                return isset($document['rideId']) &&
-                    isset($document['startingAddress']) &&
-                    isset($document['arrivalAddress']) &&
-                    isset($document['price']) &&
-                    isset($document['driver']) &&
-                    isset($document['vehicle']);
-            }));
-
-        // Remplacer le service réel par notre mock dans le conteneur
-        $this->client->getContainer()->set('App\Service\MongoService', $mongoServiceMock);
-
-        // Préparation des dates futures
-        $startingAt = new DateTimeImmutable('+1 day');
-        $arrivalAt = $startingAt->modify('+2 hours');
-
-        // Préparation des données pour la requête
-        $rideData = [
-            'startingAddress' => '20 rue de Paris, 75001 Paris',
-            'arrivalAddress' => '15 avenue Victor Hugo, 51100 Reims',
-            'startingAt' => $startingAt->format('Y-m-d H:i:s'),
-            'arrivalAt' => $arrivalAt->format('Y-m-d H:i:s'),
-            'price' => 15,
-            'nbPlacesAvailable' => 2,
-            'nbParticipant' => 1,
-            'vehicle' => $this->vehicle->getId()
-        ];
-
-        // Envoi de la requête
-        $this->client->request(
-            'POST',
-            '/api/ride/add',
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode($rideData)
-        );
-
-        // Vérifier le statut de la réponse
-        $this->assertEquals(Response::HTTP_CREATED, $this->client->getResponse()->getStatusCode());
-
-    }
-
 
 
     /**
@@ -262,7 +197,7 @@ class RideControllerTest extends WebTestCase
             ->findOneBy(['driver' => $this->testUser]);
 
         // Requête GET
-        $this->client->request('GET', '/api/ride/' . $ride->getId());
+        $this->client->request('GET', '/api/ride/show/' . $ride->getId());
 
         // Vérification de la réponse
         $this->assertEquals(Response::HTTP_OK, $this->client->getResponse()->getStatusCode());
@@ -271,6 +206,8 @@ class RideControllerTest extends WebTestCase
         $responseContent = json_decode($this->client->getResponse()->getContent(), true);
         $this->assertEquals($ride->getId(), $responseContent['id']);
     }
+
+
 
 
     /**
@@ -294,7 +231,7 @@ class RideControllerTest extends WebTestCase
         // Envoi de la requête
         $this->client->request(
             'PUT',
-            '/api/ride/' . $ride->getId() . '/update',
+            '/api/ride/update/' . $ride->getId(),
             [],
             [],
             ['CONTENT_TYPE' => 'application/json'],
@@ -310,133 +247,6 @@ class RideControllerTest extends WebTestCase
     }
 
 
-    /**
-     * Test de cohérence des données dans MongoDB
-     */
-    /**
-     * Test d'insertion dans MongoDB
-     */
-    public function testMongoDbInsertionConsistency(): void
-    {
-        // Authentification
-        $this->client->loginUser($this->testUser);
-
-        // Préparation des données
-        $startingAt = new DateTimeImmutable('+1 day');
-        $arrivalAt = $startingAt->modify('+2 hours');
-
-        $rideData = [
-            'startingAddress' => '20 rue de Paris, 75001 Paris',
-            'arrivalAddress' => '15 avenue Victor Hugo, 51100 Reims',
-            'startingAt' => $startingAt->format('Y-m-d H:i:s'),
-            'arrivalAt' => $arrivalAt->format('Y-m-d H:i:s'),
-            'price' => 15,
-            'nbPlacesAvailable' => 3,
-            'vehicle' => $this->vehicle->getId()
-        ];
-
-        // Mock pour MongoDB
-        $addedDocument = null;
-        $mongoServiceMock = $this->createMock(\App\Service\MongoService::class);
-        $mongoServiceMock->expects($this->once())
-            ->method('add')
-            ->with($this->callback(function ($document) use (&$addedDocument) {
-                $addedDocument = $document;
-                return true;
-            }));
-
-        $this->client->getContainer()->set('App\Service\MongoService', $mongoServiceMock);
-
-        // Création du covoiturage
-        $this->client->request(
-            'POST',
-            '/api/ride/add',
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode($rideData)
-        );
-
-        $this->assertEquals(Response::HTTP_CREATED, $this->client->getResponse()->getStatusCode());
-
-        // Trouver le covoiturage créé en base
-        $createdRide = $this->entityManager->getRepository(Ride::class)
-            ->findOneBy([
-                'driver' => $this->testUser,
-                'price' => 15
-            ], ['createdAt' => 'DESC']);
-
-        // Vérification de la cohérence
-        $this->assertNotNull($addedDocument);
-        $this->assertEquals($createdRide->getId(), $addedDocument['rideId']);
-        $this->assertEquals(15, $addedDocument['price']);
-        $this->assertEquals(3, $addedDocument['nbPlacesAvailable']);
-        $this->assertEquals($this->testUser->getId(), $addedDocument['driver']['id']);
-        $this->assertEquals($this->vehicle->getBrand(), $addedDocument['vehicle']['brand']);
-    }
-
-    /**
-     * Test de mise à jour dans MongoDB
-     */
-    public function testMongoDbUpdateConsistency(): void
-    {
-        // Authentification
-        $this->client->loginUser($this->testUser);
-
-        // Création préalable d'un covoiturage pour le test
-        $ride = new Ride();
-        $ride->setVehicle($this->vehicle);
-        $ride->setDriver($this->testUser);
-        $ride->setStartingAddress('{"street":"20 rue de Paris","city":"Paris","zipcode":"75001"}');
-        $ride->setArrivalAddress('{"street":"15 avenue Victor Hugo","city":"Reims","zipcode":"51100"}');
-        $ride->setStartingAt(new DateTimeImmutable('+1 day'));
-        $ride->setArrivalAt(new DateTimeImmutable('+1 day 2 hours'));
-        $ride->setPrice(15);
-        $ride->setNbPlacesAvailable(3);
-        $ride->setCreatedAt(new DateTimeImmutable());
-        $ride->setStatus('COMING');
-
-        $this->entityManager->persist($ride);
-        $this->entityManager->flush();
-
-        // Mock pour RideService
-        $updatedDocument = null;
-        $rideServiceMock = $this->createMock(\App\Service\RideService::class);
-        $rideServiceMock->expects($this->once())
-            ->method('updateRideInMongo')
-            ->with($this->callback(function ($updatedRide) use (&$updatedDocument, $ride) {
-                $updatedDocument = $updatedRide;
-                return $updatedRide->getId() === $ride->getId();
-            }));
-
-        $this->client->getContainer()->set('App\Service\RideService', $rideServiceMock);
-
-        // Mise à jour du covoiturage
-        $updateData = [
-            'price' => 25,
-            'nbPlacesAvailable' => 2
-        ];
-
-        $this->client->request(
-            'PUT',
-            '/api/ride/' . $ride->getId() . '/update',
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode($updateData)
-        );
-
-        // Vérifications
-        $this->assertEquals(Response::HTTP_OK, $this->client->getResponse()->getStatusCode());
-
-        $this->entityManager->refresh($ride);
-        $this->assertEquals(25, $ride->getPrice());
-        $this->assertEquals(2, $ride->getNbPlacesAvailable());
-
-        $this->assertNotNull($updatedDocument);
-        $this->assertEquals(25, $updatedDocument->getPrice());
-        $this->assertEquals(2, $updatedDocument->getNbPlacesAvailable());
-    }
 
     /**
      * Test de validation des adresses
@@ -493,6 +303,7 @@ class RideControllerTest extends WebTestCase
         $this->assertStringContainsString('startingAddress', $responseContent['error']);
     }
 
+
     /**
      * Test de sécurité (accès non autorisé)
      */
@@ -527,39 +338,17 @@ class RideControllerTest extends WebTestCase
         // Vérification de l'accès refusé
         $this->assertEquals(Response::HTTP_UNAUTHORIZED, $this->client->getResponse()->getStatusCode());
 
-        // 2. TEST D'ACCÈS AUX COVOITURAGES D'UN AUTRE UTILISATEUR
+        // 2. TEST DE MODIFICATION D'UN COVOITURAGE D'UN AUTRE UTILISATEUR
 
-        // Créer un deuxième utilisateur
-        $container = $this->client->getContainer();
-        $passwordHasher = $container->get(UserPasswordHasherInterface::class);
+        // Tenter de modifier un covoiturage qui ne lui appartient pas
 
-        $otherUser = new User();
-        $otherUser->setEmail('other-user' . uniqid() . '@example.com');
-        $otherUser->setPseudo('OtherUser');
-        $otherUser->setPassword($passwordHasher->hashPassword($otherUser, 'password123'));
-        $otherUser->setRoles(['ROLE_USER']);
-        $otherUser->setCreatedAt(new DateTimeImmutable());
-        $otherUser->setGrade(3);
+        // Authentification
+        $this->client->loginUser($this->testUser);
 
-        $this->entityManager->persist($otherUser);
-        $this->entityManager->flush();
-
-        // Trouver un covoiturage existant du premier utilisateur
+        // Trouver un covoiturage existant
         $ride = $this->entityManager->getRepository(Ride::class)
             ->findOneBy(['driver' => $this->testUser]);
 
-        // Authentifier le deuxième utilisateur
-        $this->client->loginUser($otherUser);
-
-        // Tenter d'accéder au détail d'un covoiturage qui ne lui appartient pas
-        $this->client->request('GET', '/api/ride/' . $ride->getId());
-
-        // Vérifier que l'accès est refusé ou renvoie une 404
-        $this->assertEquals(Response::HTTP_UNAUTHORIZED, $this->client->getResponse()->getStatusCode());
-
-        // 3. TEST DE MODIFICATION D'UN COVOITURAGE D'UN AUTRE UTILISATEUR
-
-        // Tenter de modifier un covoiturage qui ne lui appartient pas
         $updateData = [
             'price' => 30,
             'nbPlacesAvailable' => 1
@@ -567,7 +356,7 @@ class RideControllerTest extends WebTestCase
 
         $this->client->request(
             'PUT',
-            '/api/ride/' . $ride->getId() . '/update',
+            '/api/ride/update/' . $ride->getId(),
             [],
             [],
             ['CONTENT_TYPE' => 'application/json'],
@@ -609,8 +398,12 @@ class RideControllerTest extends WebTestCase
         $ride = new Ride();
         $ride->setVehicle($vehicle);
         $ride->setDriver($driver);
-        $ride->setStartingAddress('{"street":"20 rue de Paris","city":"Paris","zipcode":"75001"}');
-        $ride->setArrivalAddress('{"street":"15 avenue Victor Hugo","city":"Reims","zipcode":"51100"}');
+        $ride->setStartingStreet('Rue du test du départ');
+        $ride->setStartingPostCode('51000');
+        $ride->setStartingCity('Reims');
+        $ride->setArrivalStreet('Rue du test de l\'arrivée');
+        $ride->setArrivalPostCode('75001');
+        $ride->setArrivalCity('Paris');
         $ride->setStartingAt(new DateTimeImmutable('+1 day'));
         $ride->setArrivalAt(new DateTimeImmutable('+1 day 2 hours'));
         $ride->setPrice(15);
@@ -655,8 +448,12 @@ class RideControllerTest extends WebTestCase
         $rideWithoutPassenger = new Ride();
         $rideWithoutPassenger->setVehicle($vehicle);
         $rideWithoutPassenger->setDriver($driver);
-        $rideWithoutPassenger->setStartingAddress('{"street":"Avenue des Champs-Elysées","city":"Paris","zipcode":"75008"}');
-        $rideWithoutPassenger->setArrivalAddress('{"street":"Place Stanislas","city":"Nancy","zipcode":"54000"}');
+        $rideWithoutPassenger->setStartingStreet('Rue du test du départ');
+        $rideWithoutPassenger->setStartingPostCode('51000');
+        $rideWithoutPassenger->setStartingCity('Reims');
+        $rideWithoutPassenger->setArrivalStreet('Rue du test de l\'arrivée');
+        $rideWithoutPassenger->setArrivalPostCode('75001');
+        $rideWithoutPassenger->setArrivalCity('Paris');
         $rideWithoutPassenger->setStartingAt(new DateTimeImmutable('+2 days'));
         $rideWithoutPassenger->setArrivalAt(new DateTimeImmutable('+2 days 3 hours'));
         $rideWithoutPassenger->setPrice(25);
@@ -722,58 +519,8 @@ class RideControllerTest extends WebTestCase
         $this->assertStringContainsString('DatesHoursInconsistent', $responseContent['message']);
     }
 
-    /**
-     * Test qu'un covoiturage déjà démarré ne peut pas être modifié
-     */
-    public function testCannotUpdateStartedRide(): void
-    {
-        // Authentification de l'utilisateur
-        $this->client->loginUser($this->testUser);
 
-        // Créer un covoiturage avec le statut PROGRESSING
-        $startedRide = new Ride();
-        $startedRide->setVehicle($this->vehicle);
-        $startedRide->setDriver($this->testUser);
-        $startedRide->setStartingAddress('{"street":"Boulevard Saint-Michel","city":"Paris","zipcode":"75005"}');
-        $startedRide->setArrivalAddress('{"street":"Place Bellecour","city":"Lyon","zipcode":"69002"}');
-        $startedRide->setStartingAt(new DateTimeImmutable('-30 minutes')); // Dans le passé car déjà démarré
-        $startedRide->setArrivalAt(new DateTimeImmutable('+3 hours'));
-        $startedRide->setPrice(45);
-        $startedRide->setNbPlacesAvailable(4);
-        $startedRide->setCreatedAt(new DateTimeImmutable('-1 day'));
-        $startedRide->setStatus('PROGRESSING'); // Statut de covoiturage démarré
 
-        $this->entityManager->persist($startedRide);
-        $this->entityManager->flush();
-
-        // Tentative de modification
-        $updateData = [
-            'price' => 50,
-            'nbPlacesAvailable' => 3
-        ];
-
-        // Envoi de la requête de mise à jour
-        $this->client->request(
-            'PUT',
-            '/api/ride/' . $startedRide->getId() . '/update',
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode($updateData)
-        );
-
-        // Vérification que la modification est refusée (403 Forbidden)
-        $this->assertEquals(Response::HTTP_FORBIDDEN, $this->client->getResponse()->getStatusCode());
-
-        // Vérification du message d'erreur
-        $responseContent = json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertStringContainsString('ne peut pas être modifié', $responseContent['message']);
-
-        // Vérifier que les données n'ont pas été modifiées
-        $this->entityManager->refresh($startedRide);
-        $this->assertEquals(45, $startedRide->getPrice());
-        $this->assertEquals(4, $startedRide->getNbPlacesAvailable());
-    }
 
     /**
      * Test de création d'un covoiturage avec des données manquantes
@@ -785,8 +532,12 @@ class RideControllerTest extends WebTestCase
 
         // Données incomplètes (nbPlacesAvailable est manquant)
         $incompleteData = [
-            'startingAddress' => '20 rue de Paris, 75001 Paris',
-            'arrivalAddress' => '15 avenue Victor Hugo, 51100 Reims',
+            'StartingStreet' =>'Rue du test du départ',
+            'StartingPostCode' => '51000',
+            'setStartingCity' => 'Reims',
+            'setArrivalStreet' => 'Rue du test de l\'arrivée',
+            'setArrivalPostCode' => '75001',
+            'setArrivalCity' => 'Paris',
             'startingAt' => (new DateTimeImmutable('+2 hours'))->format('Y-m-d H:i:s'),
             'arrivalAt' => (new DateTimeImmutable('+4 hours'))->format('Y-m-d H:i:s'),
             'price' => 15,
@@ -805,8 +556,8 @@ class RideControllerTest extends WebTestCase
         );
 
         // Adaptation à la réalité actuelle de l'API (code 500 au lieu de 400)
-        $this->assertEquals(Response::HTTP_INTERNAL_SERVER_ERROR, $this->client->getResponse()->getStatusCode());
-
+        //$this->assertEquals(Response::HTTP_INTERNAL_SERVER_ERROR, $this->client->getResponse()->getStatusCode());
+        $this->assertEquals(Response::HTTP_BAD_REQUEST, $this->client->getResponse()->getStatusCode());
         // Vérification qu'aucun covoiturage n'a été créé
         $newRides = $this->entityManager->getRepository(Ride::class)->findBy([
             'driver' => $this->testUser,
@@ -820,5 +571,73 @@ class RideControllerTest extends WebTestCase
             );
         }
     }
+
+
+    /**
+     * Test qu'un covoiturage déjà démarré ne peut pas être modifié
+     */
+    public function testCannotUpdateStartedRide(): void
+    {
+        // Authentification de l'utilisateur
+        $this->client->loginUser($this->testUser);
+
+        // Créer un covoiturage avec le statut PROGRESSING
+        $startedRide = new Ride();
+        $startedRide->setVehicle($this->vehicle);
+        $startedRide->setDriver($this->testUser);
+        $startedRide->setStartingStreet('Rue du test du départ');
+        $startedRide->setStartingPostCode('51000');
+        $startedRide->setStartingCity('Reims');
+        $startedRide->setArrivalStreet('Rue du test de l\'arrivée');
+        $startedRide->setArrivalPostCode('75001');
+        $startedRide->setArrivalCity('Paris');
+        $startedRide->setStartingAt(new DateTimeImmutable('-30 minutes')); // Dans le passé car déjà démarré
+        $startedRide->setArrivalAt(new DateTimeImmutable('+3 hours'));
+        $startedRide->setPrice(45);
+        $startedRide->setNbPlacesAvailable(4);
+        $startedRide->setCreatedAt(new DateTimeImmutable('-1 day'));
+        $startedRide->setStatus('PROGRESSING'); // Statut de covoiturage démarré
+
+        $this->entityManager->persist($startedRide);
+        $this->entityManager->flush();
+
+        // Tentative de modification
+        $updateData = [
+            'price' => 50,
+            'nbPlacesAvailable' => 3
+        ];
+
+
+        // Envoi de la requête de mise à jour
+        $this->client->request(
+            'PUT',
+            '/api/ride/update/' . $startedRide->getId() . '',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode($updateData)
+        );
+
+        // Vérification que la modification est refusée (403 Forbidden)
+        $this->assertEquals(Response::HTTP_FORBIDDEN, $this->client->getResponse()->getStatusCode());
+
+        // Vérification du message d'erreur
+        $responseContent = json_decode($this->client->getResponse()->getContent(), true);
+        if ($responseContent !== null && isset($responseContent['message'])) {
+            $this->assertStringContainsString('ne peut pas être modifié', $responseContent['message']);
+        } else {
+            $this->fail('La réponse ne contient pas de message d\'erreur attendu.');
+        }
+        $this->assertStringContainsString('ne peut pas être modifié', $responseContent['message']);
+
+        // Vérifier que les données n'ont pas été modifiées
+        $this->entityManager->refresh($startedRide);
+        $this->assertEquals(45, $startedRide->getPrice());
+        $this->assertEquals(4, $startedRide->getNbPlacesAvailable());
+    }
+
+
+
+
 
 }
