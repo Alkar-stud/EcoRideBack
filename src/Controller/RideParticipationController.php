@@ -183,6 +183,10 @@ final class RideParticipationController extends AbstractController
             $users = $ride->getPassenger();
             count($users) ? $nbParticipant = count($users): $nbParticipant = 0;
 
+            //Ajout du prix dans le crédit temp sur mongoDB
+
+            $this->mongoService->addMovementCreditsForRides($ride, $user, 'add', 'addPassenger');
+
             return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
         }
         return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas l\'ajout de participants'], Response::HTTP_FORBIDDEN);
@@ -215,12 +219,14 @@ final class RideParticipationController extends AbstractController
                 return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
             }
             //On recrédite le user
-            $user->setCredits($user->getCredits() + $ride->getNbCredit());
+            $user->setCredits($user->getCredits() + $ride->getPrice());
             //On met à jour le nombre de places restantes
-            $ride->setNbPlaceRemaining($ride->getNbPlaceRemaining() + 1);
-            $ride->removePassager($user);
+            $ride->setNbPlacesAvailable($ride->getNbPlacesAvailable() + 1);
+            $ride->removePassenger($user);
             $this->manager->flush();
 
+            //Ajout du prix dans le crédit temp sur mongoDB
+            $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger');
 
 
             return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);

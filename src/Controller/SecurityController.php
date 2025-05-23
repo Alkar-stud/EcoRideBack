@@ -6,6 +6,7 @@ use App\Entity\Preferences;
 use App\Entity\User;
 use App\Service\MailService;
 use App\Repository\EcorideRepository;
+use App\Service\MongoService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -44,6 +45,7 @@ class SecurityController extends AbstractController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly MailService                 $mailService,
         private readonly EcorideRepository           $ecorideRepository,
+        private readonly MongoService                $mongoService,
     )
     {
     }
@@ -113,6 +115,7 @@ class SecurityController extends AbstractController
         // Ajout des crédits de bienvenue s'il y en a
         $ecorideTotalCredit   = $this->ecorideRepository->findOneByLibelle('TOTAL_CREDIT');
         $ecorideWelcomeCredit = $this->ecorideRepository->findOneByLibelle('WELCOME_CREDIT');
+
         //Mise à jour du crédit total
         $ecorideTotalCredit->setParameterValue($ecorideTotalCredit->getParameterValue() - $ecorideWelcomeCredit->getParameterValue());
 
@@ -144,6 +147,9 @@ class SecurityController extends AbstractController
         //persister l'utilisateur
         $this->manager->persist($user);
         $this->manager->flush();
+
+        //Mise à jour des mouvements de crédits sur EcoRide
+        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'add', 'registrationUser');
 
         //On envoie le mail type 'accountUserCreate' à l'utilisateur
         $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);

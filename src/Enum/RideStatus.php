@@ -11,6 +11,7 @@ enum RideStatus: int
     case CANCELED = 4;
     case AWAITINGVALIDATION = 5;
     case FINISHED = 6;
+    case BADEXP = 7;
 
     public function getLabel(): string
     {
@@ -20,7 +21,8 @@ enum RideStatus: int
             self::VALIDATIONPROCESSING => 'Approuvé',
             self::CANCELED => 'Annulé',
             self::AWAITINGVALIDATION => 'En Attente De Validation',
-            self::FINISHED => 'Terminé'
+            self::FINISHED => 'Terminé',
+            self::BADEXP => 'En attente de contrôle'
         };
     }
 
@@ -49,9 +51,9 @@ enum RideStatus: int
         return [
             "update" => ["initial" => ["coming"], "become" => "coming"],
             "start" => ["initial" => ["coming"], "become" => "progressing"],
-            "stop" => ["initial" => ["progressing"], "become" => "validationProcess"],
-            "badxp" => ["initial" => ["validationProcess"], "become" => "awaitingValidation"],
-            "finish" => ["initial" => ["awaitingValidation", "validationProcess"], "become" => "finished"],
+            "stop" => ["initial" => ["progressing"], "become" => "validationprocessing"],
+            "badxp" => ["initial" => ["validationprocessing"], "become" => "awaitingValidation"],
+            "finish" => ["initial" => ["awaitingValidation", "validationprocessing"], "become" => "finished"],
             "cancel" => ["initial" => ["coming"], "become" => "canceled"]
         ];
     }
