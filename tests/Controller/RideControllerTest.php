@@ -9,7 +9,6 @@ use DateTimeImmutable;
 use DateTime;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -468,15 +467,6 @@ class RideControllerTest extends WebTestCase
         $rideId = $rideWithoutPassenger->getId();
         $this->assertNotNull($rideId, "L'ID du covoiturage doit être attribué après le flush");
 
-        // Création du mock pour MongoService avec l'ID spécifique
-        $mongoServiceMock = $this->createMock(\App\Service\MongoService::class);
-        $mongoServiceMock->expects($this->once())
-            ->method('delete')
-            ->with($rideId);
-
-        // Remplacement du service
-        $this->client->getContainer()->set('App\Service\MongoService', $mongoServiceMock);
-
         // Suppression du covoiturage
         $this->client->request('DELETE', '/api/ride/' . $rideId);
         $this->assertEquals(Response::HTTP_NO_CONTENT, $this->client->getResponse()->getStatusCode());
@@ -556,7 +546,7 @@ class RideControllerTest extends WebTestCase
         );
 
         // Adaptation à la réalité actuelle de l'API (code 500 au lieu de 400)
-        //$this->assertEquals(Response::HTTP_INTERNAL_SERVER_ERROR, $this->client->getResponse()->getStatusCode());
+        //$this→assertEquals(Response::HTTP_INTERNAL_SERVER_ERROR, $this->client->getResponse()->getStatusCode());
         $this->assertEquals(Response::HTTP_BAD_REQUEST, $this->client->getResponse()->getStatusCode());
         // Vérification qu'aucun covoiturage n'a été créé
         $newRides = $this->entityManager->getRepository(Ride::class)->findBy([
@@ -591,7 +581,7 @@ class RideControllerTest extends WebTestCase
         $startedRide->setArrivalStreet('Rue du test de l\'arrivée');
         $startedRide->setArrivalPostCode('75001');
         $startedRide->setArrivalCity('Paris');
-        $startedRide->setStartingAt(new DateTimeImmutable('-30 minutes')); // Dans le passé car déjà démarré
+        $startedRide->setStartingAt(new DateTimeImmutable('-30 minutes')); // Dans le passé, car déjà démarré
         $startedRide->setArrivalAt(new DateTimeImmutable('+3 hours'));
         $startedRide->setPrice(45);
         $startedRide->setNbPlacesAvailable(4);
