@@ -269,21 +269,32 @@ final class RideParticipationController extends AbstractController
         }
 
         $currentStatus = strtolower($ride->getStatus()); // Statut actuel du covoiturage
-        $result = null;
 
-        if (isset($possibleActions[$action]) && in_array($currentStatus, $possibleActions[$action]['initial'])) {
-            $result = $possibleActions[$action]['become'];
+
+        $actionsDisponibles = '';
+        foreach ($possibleActions as $actionName => $actionData) {
+            if (in_array($currentStatus, array_map('strtolower', $actionData['initial']))) {
+                if ($actionName != 'update') { $actionsDisponibles .= $actionName . ' ou '; }
+            }
         }
+        $actionsDisponibles = substr($actionsDisponibles, 0, -4);
 
-        dd(in_array($currentStatus, $possibleActions[$action]['initial']));
-        if (!array_key_exists($action, $possibleActions) ||
-            !in_array(strtolower($ride->getStatus()), $possibleActions[$action]['initial'])) {
-            return new JsonResponse(
-                ['message' => 'Le covoiturage ne peut pas être modifié vers état.'],
-                Response::HTTP_FORBIDDEN
+        if (!in_array($currentStatus, $possibleActions[$action]['initial'])) {
+            return new JSonResponse(
+                ['message' => 'Le covoiturage ne peut pas être modifié vers cet état. L\'/les action(s) possible(s) est/sont : ' . $actionsDisponibles],
+                Response::HTTP_BAD_REQUEST
             );
         }
 
+        $ride->setStatus(strtoupper($possibleActions[$action]['become']));
+
+        $this->manager->flush();
+        $labels = [];
+        foreach (\App\Enum\RideStatus::cases() as $case) {
+            $labels[$case->name] = $case->getLabel();
+        }
+
+        return new JsonResponse(['message' => 'Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"'], Response::HTTP_OK);
 
     }
 
