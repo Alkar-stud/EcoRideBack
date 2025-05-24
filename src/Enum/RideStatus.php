@@ -18,7 +18,7 @@ enum RideStatus: int
         return match($this) {
             self::COMING => 'À Venir',
             self::PROGRESSING => 'En Cours',
-            self::VALIDATIONPROCESSING => 'Approuvé',
+            self::VALIDATIONPROCESSING => 'En cours de validation',
             self::CANCELED => 'Annulé',
             self::AWAITINGVALIDATION => 'En Attente De Validation',
             self::FINISHED => 'Terminé',

@@ -7,6 +7,7 @@ use App\Entity\Ride;
 use App\Entity\User;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
+use App\Service\MailService;
 use App\Service\MongoService;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +22,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -38,6 +40,7 @@ final class RideParticipationController extends AbstractController
         private readonly RideRepository         $repository,
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
+        private readonly MailService                 $mailService,
     )
     {
     }
@@ -170,6 +173,10 @@ final class RideParticipationController extends AbstractController
                 // L'utilisateur fait partie des participants
                 return new JsonResponse(['message' => 'Vous êtes déjà inscrit à ce covoiturage.'], Response::HTTP_OK);
             }
+            //Vérification s'il y a encore de la place disponible
+            if ($ride->getNbPlacesAvailable() <= $ride->getPassenger()->count()) {
+                return new JsonResponse(['message' => 'Il n\'y a plus de place disponible pour ce covoiturage.'], Response::HTTP_OK);
+            }
             //Vérification que le solde de credit est suffisant
             if ($user->getCredits() < $ride->getPrice()) {
                 return new JsonResponse(['message' => 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'], Response::HTTP_PAYMENT_REQUIRED);
@@ -195,6 +202,7 @@ final class RideParticipationController extends AbstractController
     #[OA\Put(
         path:"/api/ride/{rideId}/removeUser",
         summary:"Retrait d'un participant",
+
     )]
     #[OA\Response(
         response: 200,
@@ -211,7 +219,7 @@ final class RideParticipationController extends AbstractController
 
         if ($ride)
         {
-            //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+            //Si le statut est le statut initial ET que le user est bien inscrit
             if ($ride->getStatus() === RideStatus::getDefaultStatus()) {
                 //Si le $user fait partie des participants
                 if (!$ride->getPassenger()->contains($user)) {
@@ -236,9 +244,12 @@ final class RideParticipationController extends AbstractController
         return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     */
     #[Route('/{rideId}/{action}', name: 'rideAction', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/ride/{rideId}{action=/removeUser",
+        path:"/api/ride/{rideId}/{action}",
         summary:"Changement de statut d'un covoiturage",
     )]
     #[OA\Response(
@@ -255,8 +266,12 @@ final class RideParticipationController extends AbstractController
         $ride = $this->repository->findOneBy(['id' => $rideId]);
 
         if (!$ride) {
-            return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas.'], Response::HTTP_NOT_FOUND);
         }
+
+        /*
+         * Vérification si l'action demandée est possible
+         */
 
         // Vérification du statut du covoiturage pour savoir si celui-ci permet la modification
         $possibleActions = RideStatus::getPossibleActions();
@@ -270,7 +285,6 @@ final class RideParticipationController extends AbstractController
 
         $currentStatus = strtolower($ride->getStatus()); // Statut actuel du covoiturage
 
-
         $actionsDisponibles = '';
         foreach ($possibleActions as $actionName => $actionData) {
             if (in_array($currentStatus, array_map('strtolower', $actionData['initial']))) {
@@ -281,9 +295,44 @@ final class RideParticipationController extends AbstractController
 
         if (!in_array($currentStatus, $possibleActions[$action]['initial'])) {
             return new JSonResponse(
-                ['message' => 'Le covoiturage ne peut pas être modifié vers cet état. L\'/les action(s) possible(s) est/sont : ' . $actionsDisponibles],
+                ['message' => 'Le covoiturage ne peut pas être modifié vers cet état. La ou les action(s) possible(s) est/sont : "' . $actionsDisponibles . '"'],
                 Response::HTTP_BAD_REQUEST
             );
+        }
+
+
+        /*
+         * Traitement en fonction de l'action demandée
+         */
+
+        //Si l'action est start
+        if ($action == 'start') {
+            //On est bien le jour du départ
+            if ($ride->getStartingAt()->format('Y-m-d') != (new \DateTimeImmutable())->format('Y-m-d')) {
+                return new JsonResponse(
+                    ['message' => 'Le covoiturage ne peut démarrer que le jour où il est déclaré commencer.'],
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+            //Vérification s'il y a des participants inscrits, pour ne pas démarrer un covoiturage sans passagers où la commission serait prise à la fin.
+            if ($ride->getPassenger()->isEmpty()) {
+                return new JsonResponse(['message' => 'Il n\'y a aucun participant inscrit à ce covoiturage.'], Response::HTTP_BAD_REQUEST);
+            }
+        }
+        //Si l'action est stop
+        if ($action == 'stop') {
+            //Mail type 'passengerValidation' à envoyer aux participants les invitant à se rendre dans leur espace "Mes covoiturages" pour valider le trajet
+            foreach ($ride->getPassenger() as $userPassenger) {
+                $this->mailService->sendEmail(
+                    $userPassenger->getEmail(),
+                    'passengerValidation',
+                    [
+                        'pseudoPassenger' => $userPassenger->getPseudo(),
+                        'rideDate' => $ride->getStartingAt()->format('d/m/Y'),
+                        'pseudoDriver' => $ride->getDriver()->getPseudo()
+                    ]
+                );
+            }
         }
 
         $ride->setStatus(strtoupper($possibleActions[$action]['become']));
@@ -295,7 +344,6 @@ final class RideParticipationController extends AbstractController
         }
 
         return new JsonResponse(['message' => 'Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"'], Response::HTTP_OK);
-
     }
 
 
