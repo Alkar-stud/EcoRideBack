@@ -9,6 +9,7 @@ use App\Enum\RideStatus;
 use App\Repository\RideRepository;
 use App\Service\MailService;
 use App\Service\MongoService;
+use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Nelmio\ApiDocBundle\Attribute\Areas;
@@ -263,7 +264,7 @@ final class RideParticipationController extends AbstractController
     public function rideAction(#[CurrentUser] ?User $user, int $rideId, string $action): JsonResponse
     {
         //Récupération du covoiturage
-        $ride = $this->repository->findOneBy(['id' => $rideId]);
+        $ride = $this->repository->findOneBy(['id' => $rideId, 'driver' => $user]);
 
         if (!$ride) {
             return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas.'], Response::HTTP_NOT_FOUND);
@@ -308,7 +309,7 @@ final class RideParticipationController extends AbstractController
         //Si l'action est start
         if ($action == 'start') {
             //On est bien le jour du départ
-            if ($ride->getStartingAt()->format('Y-m-d') != (new \DateTimeImmutable())->format('Y-m-d')) {
+            if ($ride->getStartingAt()->format('Y-m-d') != (new DateTimeImmutable())->format('Y-m-d')) {
                 return new JsonResponse(
                     ['message' => 'Le covoiturage ne peut démarrer que le jour où il est déclaré commencer.'],
                     Response::HTTP_BAD_REQUEST
@@ -339,7 +340,7 @@ final class RideParticipationController extends AbstractController
 
         $this->manager->flush();
         $labels = [];
-        foreach (\App\Enum\RideStatus::cases() as $case) {
+        foreach (RideStatus::cases() as $case) {
             $labels[$case->name] = $case->getLabel();
         }
 
