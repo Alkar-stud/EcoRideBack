@@ -210,28 +210,31 @@ final class RideParticipationController extends AbstractController
         //Récupération du covoiturage
         $ride = $this->repository->findOneBy(['id' => $rideId]);
 
-        //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
-        if ($ride->getStatus() === RideStatus::getDefaultStatus())
+        if ($ride)
         {
-            //Si le $user fait partie des participants
-            if (!$ride->getPassenger()->contains($user)) {
-                // L'utilisateur ne fait pas partie des participants
-                return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
+            //Si le statut est le statut initial ET que le user n'a pas déjà été ajouté
+            if ($ride->getStatus() === RideStatus::getDefaultStatus()) {
+                //Si le $user fait partie des participants
+                if (!$ride->getPassenger()->contains($user)) {
+                    // L'utilisateur ne fait pas partie des participants
+                    return new JsonResponse(['message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
+                }
+                //On recrédite le user
+                $user->setCredits($user->getCredits() + $ride->getPrice());
+                //On met à jour le nombre de places restantes
+                $ride->setNbPlacesAvailable($ride->getNbPlacesAvailable() + 1);
+                $ride->removePassenger($user);
+                $this->manager->flush();
+
+                //Ajout du prix dans le crédit temp sur mongoDB
+                $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger');
+
+
+                return new JsonResponse(['message' => 'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
             }
-            //On recrédite le user
-            $user->setCredits($user->getCredits() + $ride->getPrice());
-            //On met à jour le nombre de places restantes
-            $ride->setNbPlacesAvailable($ride->getNbPlacesAvailable() + 1);
-            $ride->removePassenger($user);
-            $this->manager->flush();
-
-            //Ajout du prix dans le crédit temp sur mongoDB
-            $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger');
-
-
-            return new JsonResponse(['message'=>'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
+            return new JsonResponse(['message' => 'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
         }
-        return new JsonResponse(['message'=>'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
+        return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
     }
 
 }
