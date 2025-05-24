@@ -135,9 +135,9 @@ final class RideParticipationController extends AbstractController
      * @throws MongoDBException
      * @throws Throwable
      */
-    #[Route('/{id}/addUser', name: 'addUser', methods: ['PUT'])]
+    #[Route('/{rideId}/addUser', name: 'addUser', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/ride/{Id}/addUser",
+        path:"/api/ride/{rideId}/addUser",
         summary:"Ajout d'un participant",
 
     )]
@@ -153,10 +153,10 @@ final class RideParticipationController extends AbstractController
         response: 402,
         description: 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'
     )]
-    public function addUser(#[CurrentUser] ?User $user, int $id): JsonResponse
+    public function addUser(#[CurrentUser] ?User $user, int $rideId): JsonResponse
     {
         //Récupération du covoiturage
-        $ride = $this->repository->findOneBy(['id' => $id]);
+        $ride = $this->repository->findOneBy(['id' => $rideId]);
 
         if (!$ride) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
@@ -180,7 +180,6 @@ final class RideParticipationController extends AbstractController
             $this->manager->flush();
 
             //Ajout du prix dans le crédit temp sur mongoDB
-
             $this->mongoService->addMovementCreditsForRides($ride, $user, 'add', 'addPassenger');
 
             return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
@@ -236,5 +235,58 @@ final class RideParticipationController extends AbstractController
         }
         return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
     }
+
+    #[Route('/{rideId}/{action}', name: 'rideAction', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/ride/{rideId}{action=/removeUser",
+        summary:"Changement de statut d'un covoiturage",
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Le covoiturage est maintenant en statuts {action}'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Covoiturage non trouvé'
+    )]
+    public function rideAction(#[CurrentUser] ?User $user, int $rideId, string $action): JsonResponse
+    {
+        //Récupération du covoiturage
+        $ride = $this->repository->findOneBy(['id' => $rideId]);
+
+        if (!$ride) {
+            return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
+        }
+
+        // Vérification du statut du covoiturage pour savoir si celui-ci permet la modification
+        $possibleActions = RideStatus::getPossibleActions();
+        // Si l'action n'est pas définie dans les actions possibles, on retourne une erreur
+        if (!array_key_exists($action, $possibleActions)) {
+            return new JsonResponse(
+                ['message' => 'Action non reconnue.'],
+                Response::HTTP_BAD_REQUEST
+            );
+        }
+
+        $currentStatus = strtolower($ride->getStatus()); // Statut actuel du covoiturage
+        $result = null;
+
+        if (isset($possibleActions[$action]) && in_array($currentStatus, $possibleActions[$action]['initial'])) {
+            $result = $possibleActions[$action]['become'];
+        }
+
+        dd(in_array($currentStatus, $possibleActions[$action]['initial']));
+        if (!array_key_exists($action, $possibleActions) ||
+            !in_array(strtolower($ride->getStatus()), $possibleActions[$action]['initial'])) {
+            return new JsonResponse(
+                ['message' => 'Le covoiturage ne peut pas être modifié vers état.'],
+                Response::HTTP_FORBIDDEN
+            );
+        }
+
+
+    }
+
+
 
 }
