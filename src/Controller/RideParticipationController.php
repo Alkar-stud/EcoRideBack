@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 
+use App\Document\MongoRideNotice;
 use App\Entity\Ride;
 use App\Entity\User;
 use App\Enum\RideStatus;
@@ -26,6 +27,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
 use Throwable;
 
@@ -33,6 +35,7 @@ use Throwable;
 #[Route('/api/ride', name: 'app_api_ride_')]
 #[OA\Tag(name: 'RideParticipation')]
 #[Areas(["default"])]
+#[IsGranted('ROLE_USER')]
 final class RideParticipationController extends AbstractController
 {
 
@@ -245,6 +248,69 @@ final class RideParticipationController extends AbstractController
         return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
     }
 
+
+    #[Route('/{rideId}/validate', name: 'rideValidate', methods: ['POST'])]
+    #[OA\Post(
+        path:"/api/ride/{rideId}/validate",
+        summary:"Validation, note et commentaire suite à fin du covoiturage",
+        requestBody :new RequestBody(
+            description: "Note et commentaire suite à fin du covoiturage",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [
+                    new Property(
+                        property: "grade",
+                        type: "integer",
+                        example: 5
+                    ),
+                    new Property(
+                        property: "title",
+                        type: "text",
+                        example: "titre de l'avis"
+                    ),
+                    new Property(
+                        property: "content",
+                        type: "text",
+                        example: "Contenu de l'avis"
+                    )
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Validation envoyée avec succès',
+        content: new Model(type: MongoRideNotice::class)
+    )]
+    public function rideValidate(#[CurrentUser] ?User $user, Request $request, int $rideId): JsonResponse
+    {
+        $notice = $this->serializer->decode($request->getContent(), 'json');
+
+        //Récupération du covoiturage où le user fait partie des passagers
+        $ride = $this->repository->find($rideId);
+        if (!$ride || !$ride->getPassenger()->contains($user)) {
+            return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas ou vous n\'êtes pas un passager de celui-ci.'], Response::HTTP_NOT_FOUND);
+        }
+
+
+        //Si isAllOk === false, statut du covoiturage passe à BADEXP, seul un employé pourra le changer en FINISHED.
+        if ($notice['isAllOk'] === false)
+        {
+            $ride->setStatus('BADEXP');
+        }
+
+
+        //grade, title et content peuvent être null
+        //grade doit être maximum de 5
+        if ($notice['grade'] < 0 || $notice['grade'] > 5)
+        {
+            return new JsonResponse(['message' => 'La note doit être entre 0 et 5'], Response::HTTP_BAD_REQUEST);
+        }
+
+        dd($notice);
+
+
+    }
+
     /**
      * @throws TransportExceptionInterface
      */
@@ -346,6 +412,9 @@ final class RideParticipationController extends AbstractController
 
         return new JsonResponse(['message' => 'Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"'], Response::HTTP_OK);
     }
+
+
+
 
 
 

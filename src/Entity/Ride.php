@@ -91,9 +91,16 @@ class Ride
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'ridesPassenger')]
     private Collection $passenger;
 
+    /**
+     * @var Collection<int, Validation>
+     */
+    #[ORM\OneToMany(targetEntity: Validation::class, mappedBy: 'ride')]
+    private Collection $validations;
+
     public function __construct()
     {
         $this->passenger = new ArrayCollection();
+        $this->validations = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -325,6 +332,36 @@ class Ride
     public function removePassenger(User $passenger): static
     {
         $this->passenger->removeElement($passenger);
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Validation>
+     */
+    public function getValidations(): Collection
+    {
+        return $this->validations;
+    }
+
+    public function addValidation(Validation $validation): static
+    {
+        if (!$this->validations->contains($validation)) {
+            $this->validations->add($validation);
+            $validation->setRide($this);
+        }
+
+        return $this;
+    }
+
+    public function removeValidation(Validation $validation): static
+    {
+        if ($this->validations->removeElement($validation)) {
+            // set the owning side to null (unless already changed)
+            if ($validation->getRide() === $this) {
+                $validation->setRide(null);
+            }
+        }
 
         return $this;
     }
