@@ -8,6 +8,7 @@ use App\Entity\Ride;
 use App\Entity\User;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
+use App\Repository\ValidationRepository;
 use App\Service\MailService;
 use App\Service\MongoService;
 use DateTimeImmutable;
@@ -42,9 +43,10 @@ final class RideParticipationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly RideRepository         $repository,
+        private readonly ValidationRepository   $repositoryValidation,
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
-        private readonly MailService                 $mailService,
+        private readonly MailService            $mailService,
     )
     {
     }
@@ -100,6 +102,10 @@ final class RideParticipationController extends AbstractController
         description: 'Covoiturage(s) trouvé(s) avec succès',
         content: new Model(type: Ride::class, groups: ['ride_search'])
     )]
+    #[OA\Response(
+        response: 404,
+        description: 'Aucun covoiturage trouvé'
+    )]
     public function search(Request $request): JsonResponse
     {
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
@@ -153,7 +159,7 @@ final class RideParticipationController extends AbstractController
         description: 'Vous avez été ajouté à ce covoiturage'
     )]
     #[OA\Response(
-        response: 400,
+        response: 404,
         description: 'Covoiturage non trouvé'
     )]
     #[OA\Response(
@@ -191,7 +197,7 @@ final class RideParticipationController extends AbstractController
             $this->manager->flush();
 
             //Ajout du prix dans le crédit temp sur mongoDB
-            $this->mongoService->addMovementCreditsForRides($ride, $user, 'add', 'addPassenger');
+            $this->mongoService->addMovementCreditsForRides($ride, $user, 'add', 'addPassenger', $ride->getPrice());
 
             return new JsonResponse(['message'=>'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
         }
@@ -238,7 +244,7 @@ final class RideParticipationController extends AbstractController
                 $this->manager->flush();
 
                 //Ajout du prix dans le crédit temp sur mongoDB
-                $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger');
+                $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger', $ride->getPrice());
 
 
                 return new JsonResponse(['message' => 'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
@@ -249,12 +255,12 @@ final class RideParticipationController extends AbstractController
     }
 
 
-    #[Route('/{rideId}/validate', name: 'rideValidate', methods: ['POST'])]
+    #[Route('/{rideId}/addNotice', name: 'rideValidate', methods: ['POST'])]
     #[OA\Post(
-        path:"/api/ride/{rideId}/validate",
-        summary:"Validation, note et commentaire suite à fin du covoiturage",
+        path:"/api/ride/{rideId}/addNotice",
+        summary:"Note et commentaire suite à la fin du covoiturage",
         requestBody :new RequestBody(
-            description: "Note et commentaire suite à fin du covoiturage",
+            description: "Note et commentaire suite à la fin du covoiturage",
             required: true,
             content: [new MediaType(mediaType:"application/json",
                 schema: new Schema(properties: [
@@ -281,33 +287,45 @@ final class RideParticipationController extends AbstractController
         description: 'Validation envoyée avec succès',
         content: new Model(type: MongoRideNotice::class)
     )]
-    public function rideValidate(#[CurrentUser] ?User $user, Request $request, int $rideId): JsonResponse
+    public function rideNotice(#[CurrentUser] ?User $user, Request $request, int $rideId): JsonResponse
     {
-        $notice = $this->serializer->decode($request->getContent(), 'json');
-
         //Récupération du covoiturage où le user fait partie des passagers
         $ride = $this->repository->find($rideId);
         if (!$ride || !$ride->getPassenger()->contains($user)) {
             return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas ou vous n\'êtes pas un passager de celui-ci.'], Response::HTTP_NOT_FOUND);
         }
 
+        //Il doit déjà y avoir une validation avant de déposer une note
+        //Récupération de la validation
+        $validation = $this->repositoryValidation->findOneBy(['ride' => $rideId, 'passenger' => $user]);
 
-        //Si isAllOk === false, statut du covoiturage passe à BADEXP, seul un employé pourra le changer en FINISHED.
-        if ($notice['isAllOk'] === false)
+        if (!$validation)
         {
-            $ride->setStatus('BADEXP');
+            return new JsonResponse(['message' => 'Vous devez valider le bon déroulement du covoiturage avant de mettre une note.'], Response::HTTP_BAD_REQUEST);
         }
 
+        //
 
-        //grade, title et content peuvent être null
+        //Vérification que le user n'a pas déjà envoyé un avis
+        $notice = $this->mongoService->searchNotice($user, $ride);
+
+        if ($notice)
+        {
+            return new JsonResponse(['message' => 'Vous avez déjà envoyé un avis.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $notice = $this->serializer->decode($request->getContent(), 'json');
+
         //grade doit être maximum de 5
         if ($notice['grade'] < 0 || $notice['grade'] > 5)
         {
             return new JsonResponse(['message' => 'La note doit être entre 0 et 5'], Response::HTTP_BAD_REQUEST);
         }
 
-        dd($notice);
+        // Création et insertion de l'avis MongoDB
+        $this->mongoService->addNotice($notice, $user, $ride);
 
+        return new JsonResponse(['Votre avis sera publié une fois validé.'], Response::HTTP_OK);
 
     }
 
@@ -385,6 +403,7 @@ final class RideParticipationController extends AbstractController
             if ($ride->getPassenger()->isEmpty()) {
                 return new JsonResponse(['message' => 'Il n\'y a aucun participant inscrit à ce covoiturage.'], Response::HTTP_BAD_REQUEST);
             }
+            $ride->setActualDepartureAt(new DateTimeImmutable);
         }
         //Si l'action est stop
         if ($action == 'stop') {
@@ -400,6 +419,7 @@ final class RideParticipationController extends AbstractController
                     ]
                 );
             }
+            $ride->setActualArrivalAt(new DateTimeImmutable);
         }
 
         $ride->setStatus(strtoupper($possibleActions[$action]['become']));

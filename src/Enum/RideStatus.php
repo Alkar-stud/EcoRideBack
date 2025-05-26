@@ -46,6 +46,16 @@ enum RideStatus: int
         return self::FINISHED->name; // Fallback si jamais la valeur 6 n'est pas trouvée
     }
 
+    public static function getBadExpStatus(): string
+    {
+        foreach (self::cases() as $case) {
+            if ($case->value === 7) {
+                return $case->name;
+            }
+        }
+        return self::BADEXP->name; // Fallback si jamais la valeur 6 n'est pas trouvée
+    }
+
     public static function getPossibleActions(): array
     {
         return [

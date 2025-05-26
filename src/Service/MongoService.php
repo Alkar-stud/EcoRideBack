@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Document\MongoEcoRideCreditsTemp;
 use App\Document\MongoRideCredit;
+use App\Document\MongoRideNotice;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\MongoDBException;
@@ -26,7 +27,7 @@ class MongoService
      * @throws Throwable
      * @throws MongoDBException
      */
-    function addMovementCreditsForRides($ride, $user, $action, $reason): bool
+    function addMovementCreditsForRides($ride, $user, $action, $reason, $montant): bool
     {
         $dm = $this->documentManager;
 
@@ -34,7 +35,7 @@ class MongoService
         $mongoRideCredit->setRideId($ride->getId());
         $mongoRideCredit->setUser($user->getId());
         if ($action == 'add') {
-            $mongoRideCredit->setAddCredit($ride->getPrice());
+            $mongoRideCredit->setAddCredit($montant);
             $mongoRideCredit->setWithdrawCredit(0);
         } elseif ($action == 'withdraw') {
             $mongoRideCredit->setAddCredit(0);
@@ -111,5 +112,82 @@ class MongoService
 
         return true;
     }
+
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
+    function addNotice($notice, $user, $ride): true
+    {
+        $dm = $this->documentManager;
+
+        $mongoNotice = new MongoRideNotice();
+        $mongoNotice->setStatus('AWAITINGVALIDATION');
+        $mongoNotice->setGrade($notice['grade']);
+        $mongoNotice->setTitle($notice['title'] ?? null);
+        $mongoNotice->setContent($notice['content'] ?? null);
+        $mongoNotice->setPublishedBy($user->getId());
+        $mongoNotice->setRelatedFor($ride->getId());
+        $mongoNotice->setValidateBy(null);
+        $mongoNotice->setRefusedBy(null);
+        $mongoNotice->setCreatedAt(new DateTimeImmutable());
+        $mongoNotice->setUpdatedAt(null);
+
+        $dm->persist($mongoNotice);
+        $dm->flush();
+
+        return true;
+    }
+
+    function searchNotice($user, $ride, $status = null): array
+    {
+        $dm = $this->documentManager;
+        $repo = $dm->getRepository(MongoRideNotice::class);
+
+        //Filtre en fonction du statut
+        $criteria = [
+            'publishedBy' => $user->getId(),
+            'relatedFor' => $ride->getId()
+        ];
+
+        if ($status !== null) {
+            $criteria['status'] = $status;
+        }
+
+        return $repo->findBy($criteria);
+    }
+
+
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
+    function updateNotice($notice, $user, $action)
+    {
+        $dm = $this->documentManager;
+
+        //Récupération de la notice
+        $mongoNotice = $dm->getRepository(MongoRideNotice::class)->findOneBy(['_id' => $notice['id']]);
+
+        if (!$mongoNotice)
+        {
+            return false;
+        }
+
+        if ($action == 'validated')
+        {
+            $mongoNotice->setRefusedBy($user);
+        } else {
+            $mongoNotice->setValidateBy($user);
+        }
+
+        $mongoNotice->setUpdatedAt(new DateTimeImmutable());
+
+        $dm->persist($mongoNotice);
+        $dm->flush();
+
+        return true;
+    }
+
 
 }

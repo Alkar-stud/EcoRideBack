@@ -13,6 +13,8 @@ class MongoRideNotice
     #[MongoDB\Id]
     protected $id;
 
+    #[MongoDB\Field(type: "string")]
+    private ?string $status;
     #[MongoDB\Field(type: "int")]
     private ?int $grade;
 
@@ -50,6 +52,17 @@ class MongoRideNotice
     public function getId()
     {
         return $this->id;
+    }
+
+    public function getStatus(): ?string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(?string $status): self
+    {
+        $this->status = $status;
+        return $this;
     }
 
     public function getGrade(): ?int
@@ -112,7 +125,7 @@ class MongoRideNotice
         return $this->refusedBy;
     }
 
-    public function refusedBy(?int $refusedBy): self
+    public function setRefusedBy(?int $refusedBy): self
     {
         $this->refusedBy = $refusedBy;
         return $this;
