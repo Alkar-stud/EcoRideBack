@@ -102,6 +102,10 @@ final class ValidationController extends AbstractController
         {
             $validation->setIsClosed(true);
             $validation->setClosedBy($user);
+        } else {
+            $ride->setStatus(RideStatus::getBadExpStatus());
+            $validation->setIsClosed(false);
+            $validation->setClosedBy(null);
         }
 
         $validation->setCreatedAt(new DateTimeImmutable());
@@ -127,19 +131,20 @@ final class ValidationController extends AbstractController
             }
             $payment = ($nbPassengers * $ride->getPrice());
 
-            $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Paiement du chauffeur pour le covoiturage ' . $ride->getId(), $payment);
-
             //On met à jour le crédit du chauffeur
             $ride->getDriver()->setCredits($ride->getDriver()->getCredits() + $payment - $platformCommission->getParameterValue());
             //On incrémente le crédit total de EcoRide
             $platformTotalCredits = $this->repositoryEcoRide->findOneBy(['libelle' => 'TOTAL_CREDIT']);
             $platformTotalCredits->setParameterValue($platformCommission->getParameterValue() + $platformTotalCredits->getParameterValue());
 
+            $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Paiement du chauffeur pour le covoiturage ' . $ride->getId(), $ride->getDriver()->getCredits());
+            $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Commission de la plateforme pour le covoiturage ' . $ride->getId(), $platformCommission->getParameterValue());
+
             $this->manager->persist($ride->getDriver());
 
             $this->manager->flush();
         }
 
-        return new JsonResponse(['message' => 'Votre validation a bien été envoyée.'], Response::HTTP_OK);
+        return new JsonResponse(['message' => 'Votre validation a bien été envoyée.' . ($ride->getStatus() === RideStatus::getBadExpStatus() ? ' Un employé va vérifier votre réclamation.':'')], Response::HTTP_OK);
     }
 }

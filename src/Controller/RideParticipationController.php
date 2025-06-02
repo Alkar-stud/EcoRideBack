@@ -116,6 +116,12 @@ final class RideParticipationController extends AbstractController
         {
             return new JsonResponse(['message' => 'Champs obligatoires manquants'], Response::HTTP_BAD_REQUEST);
         }
+        //la date doit être supérieure ou égale au jour
+        if ($dataRequest['startingAt'] < new DateTimeImmutable())
+        {
+            return new JsonResponse(['message' => 'La date doit être supérieure ou égale au jour'], Response::HTTP_BAD_REQUEST);
+        }
+
         //transformation des champs startingAddress en street, postcode et city
         $dataRequest['startingStreet'] = $dataRequest['startingAddress']['street'];
         $dataRequest['startingPostCode'] = $dataRequest['startingAddress']['postcode'];
