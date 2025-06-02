@@ -36,7 +36,6 @@ use Throwable;
 #[Route('/api/ride', name: 'app_api_ride_')]
 #[OA\Tag(name: 'RideParticipation')]
 #[Areas(["default"])]
-#[IsGranted('ROLE_USER')]
 final class RideParticipationController extends AbstractController
 {
 
@@ -117,9 +116,11 @@ final class RideParticipationController extends AbstractController
             return new JsonResponse(['message' => 'Champs obligatoires manquants'], Response::HTTP_BAD_REQUEST);
         }
         //la date doit être supérieure ou égale au jour
-        if ($dataRequest['startingAt'] < new DateTimeImmutable())
+        $startingAt = new DateTimeImmutable($dataRequest['startingAt']);
+        $today = (new \DateTimeImmutable())->setTime(0, 0, 0);
+        if ($startingAt < $today)
         {
-            return new JsonResponse(['message' => 'La date doit être supérieure ou égale au jour'], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['message' => 'La date doit être supérieure ou égale à la date du jour .'], Response::HTTP_BAD_REQUEST);
         }
 
         //transformation des champs startingAddress en street, postcode et city
@@ -137,17 +138,32 @@ final class RideParticipationController extends AbstractController
         //chercher à l'aide de $dataRequest
         $rides = $this->repository->findBySomeField($dataRequest);
 
+        // Après la recherche principale
         if(!$rides) {
+            $today = (new DateTimeImmutable())->setTime(0, 0, 0);
+            $searchDate = new DateTimeImmutable($dataRequest['startingAt']);
+
+            // Recherche du covoiturage le plus proche avant la date demandée (>= aujourd'hui)
+            $rideBefore = $this->repository->findOneClosestBefore($dataRequest, $searchDate, $today);
+
+            // Recherche du covoiturage le plus proche après la date demandée
+            $rideAfter = $this->repository->findOneClosestAfter($dataRequest, $searchDate);
+
+            $ridesFound = [];
+            if ($rideBefore) $ridesFound[] = $rideBefore;
+            if ($rideAfter) $ridesFound[] = $rideAfter;
+
+            if (!empty($ridesFound)) {
+                $jsonContent = $this->serializer->serialize($ridesFound, 'json', ['groups' => 'ride_search']);
+                return new JsonResponse($jsonContent, Response::HTTP_OK, [], true);
+            }
+
             return new JsonResponse(['message' => 'Aucun covoiturage trouvé'], Response::HTTP_NOT_FOUND);
         }
-
 
         $jsonContent = $this->serializer->serialize($rides, 'json', ['groups' => 'ride_search']);
 
         return new JsonResponse($jsonContent, Response::HTTP_OK, [], true);
-
-
-
     }
 
     /**
@@ -172,6 +188,7 @@ final class RideParticipationController extends AbstractController
         response: 402,
         description: 'Vous n\'avez pas assez de credit pour participer à ce covoiturage.'
     )]
+    #[IsGranted('ROLE_USER')]
     public function addUser(#[CurrentUser] ?User $user, int $rideId): JsonResponse
     {
         //Récupération du covoiturage
@@ -228,6 +245,7 @@ final class RideParticipationController extends AbstractController
         response: 400,
         description: 'Covoiturage non trouvé'
     )]
+    #[IsGranted('ROLE_USER')]
     public function removeUser(#[CurrentUser] ?User $user, int $rideId): JsonResponse
     {
         //Récupération du covoiturage
@@ -293,6 +311,7 @@ final class RideParticipationController extends AbstractController
         description: 'Validation envoyée avec succès',
         content: new Model(type: MongoRideNotice::class)
     )]
+    #[IsGranted('ROLE_USER')]
     public function rideNotice(#[CurrentUser] ?User $user, Request $request, int $rideId): JsonResponse
     {
         //Récupération du covoiturage où le user fait partie des passagers
@@ -351,6 +370,7 @@ final class RideParticipationController extends AbstractController
         response: 400,
         description: 'Covoiturage non trouvé'
     )]
+    #[IsGranted('ROLE_USER')]
     public function rideAction(#[CurrentUser] ?User $user, int $rideId, string $action): JsonResponse
     {
         //Récupération du covoiturage
@@ -438,10 +458,5 @@ final class RideParticipationController extends AbstractController
 
         return new JsonResponse(['message' => 'Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"'], Response::HTTP_OK);
     }
-
-
-
-
-
 
 }

@@ -35,7 +35,7 @@ class RideRepository extends ServiceEntityRepository
 
         // Filtrer les trajets qui ont encore des places disponibles
         $qb->groupBy('r.id')                // Regroupement par l'ID du trajet
-           ->having('r.nbPlacesAvailable > COUNT(p.id)'); // Vérification que le nombre de places disponibles est supérieur au nombre de passagers
+        ->having('r.nbPlacesAvailable > COUNT(p.id)'); // Vérification que le nombre de places disponibles est supérieur au nombre de passagers
 
         // Filtres optionnels
         if (isset($criteria['maxPrice'])) {
@@ -86,14 +86,4 @@ class RideRepository extends ServiceEntityRepository
         return $ridesWithRemainingSeats;
     }
 
-//    public function findOneBySomeField($value): ?Ride
-//    {
-//
-//        return $this->createQueryBuilder('r')
-//            ->andWhere('r.startingCity = :startingCity')
-//            ->setParameter('startingCity', $value['startingCity'])
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
 }
