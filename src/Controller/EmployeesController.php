@@ -96,6 +96,11 @@ final class EmployeesController extends AbstractController
                         type: "string",
                         example: "En cours de contact avec le chauffeur"
                     ),
+                    new Property(
+                        property: "isClosed",
+                        type: "boolean",
+                        example: false
+                    ),
                 ], type: "object"))]
         ),
     )]
@@ -136,8 +141,9 @@ final class EmployeesController extends AbstractController
             //Compte des validations
             $nbValidations = count($ride->getValidations());
 
-            if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
+            if ($nbValidations === $nbPassengers && ($ride->getStatus() !== RideStatus::getBadExpStatus() || $ride->getStatus() != RideStatus::getBadExpStatusProcessing()))
             {
+
                 //On paie le chauffeur, $nbPassengers * $ride→price – la commission
                 $this->ridePayments->driverPayment($ride, $nbPassengers);
 

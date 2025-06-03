@@ -40,7 +40,7 @@ class MongoService
             $mongoRideCredit->setWithdrawCredit(0);
         } elseif ($action == 'withdraw') {
             $mongoRideCredit->setAddCredit(0);
-            $mongoRideCredit->setWithdrawCredit($ride->getPrice());
+            $mongoRideCredit->setWithdrawCredit($montant);
         } else {
             return false;
         }

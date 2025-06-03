@@ -117,7 +117,7 @@ final class ValidationController extends AbstractController
         //Compte des validations
         $nbValidations = count($ride->getValidations());
 
-        if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
+        if ($nbValidations === $nbPassengers && ($ride->getStatus() !== RideStatus::getBadExpStatus() || $ride->getStatus() != RideStatus::getBadExpStatusProcessing()))
         {
             //On paie le chauffeur, $nbPassengers * $ride→price – la commission
             $this->ridePayments->driverPayment($ride, $nbPassengers);

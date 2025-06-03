@@ -36,7 +36,7 @@ readonly class RidePayments
         $this->manager->persist($ride);
         $this->manager->flush();
 
-        $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Paiement du chauffeur pour le covoiturage ' . $ride->getId(), $ride->getDriver()->getCredits());
+        $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Paiement du chauffeur pour le covoiturage ' . $ride->getId(), $payment - $platformCommission->getParameterValue());
 
         return true;
     }

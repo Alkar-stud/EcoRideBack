@@ -270,7 +270,6 @@ final class RideParticipationController extends AbstractController
                 //Ajout du prix dans le crédit temp sur mongoDB
                 $this->mongoService->addMovementCreditsForRides($ride, $user, 'withdraw', 'removePassenger', $ride->getPrice());
 
-
                 return new JsonResponse(['message' => 'Vous avez été retiré à ce covoiturage'], Response::HTTP_OK);
             }
             return new JsonResponse(['message' => 'L\'état de ce covoiturage ne permet pas de retirer des participants'], Response::HTTP_FORBIDDEN);
