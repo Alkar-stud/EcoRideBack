@@ -5,10 +5,9 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Entity\Validation;
 use App\Enum\RideStatus;
-use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
-use App\Service\MongoService;
+use App\Service\RidePayments;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,10 +34,9 @@ final class ValidationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly RideRepository         $repository,
-        private readonly EcoRideRepository      $repositoryEcoRide,
         private readonly ValidationRepository   $repositoryValidation,
         private readonly SerializerInterface    $serializer,
-        private readonly MongoService           $mongoService,
+        private readonly RidePayments           $ridePayments,
     )
     {
     }
@@ -121,24 +119,8 @@ final class ValidationController extends AbstractController
 
         if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
         {
-            //Statut de fin par défaut
-            $ride->setStatus(RideStatus::getFinishedStatus());
             //On paie le chauffeur, $nbPassengers * $ride→price – la commission
-            //Récupération de la commission, parameterValue de l'entité EcoRide dont le libelle est PLATFORM_COMMISSION_CREDIT.
-            $platformCommission = $this->repositoryEcoRide->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT']);
-            if (!$platformCommission) {
-                $platformCommission->setParameterValue(0);
-            }
-            $payment = ($nbPassengers * $ride->getPrice());
-
-            //On met à jour le crédit du chauffeur
-            $ride->getDriver()->setCredits($ride->getDriver()->getCredits() + $payment - $platformCommission->getParameterValue());
-            //On incrémente le crédit total de EcoRide
-            $platformTotalCredits = $this->repositoryEcoRide->findOneBy(['libelle' => 'TOTAL_CREDIT']);
-            $platformTotalCredits->setParameterValue($platformCommission->getParameterValue() + $platformTotalCredits->getParameterValue());
-
-            $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Paiement du chauffeur pour le covoiturage ' . $ride->getId(), $ride->getDriver()->getCredits());
-            $this->mongoService->addMovementCreditsForRides($ride, $ride->getDriver(), 'withdraw', 'Commission de la plateforme pour le covoiturage ' . $ride->getId(), $platformCommission->getParameterValue());
+            $this->ridePayments->driverPayment($ride, $nbPassengers);
 
             $this->manager->persist($ride->getDriver());
 

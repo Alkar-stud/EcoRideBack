@@ -4,10 +4,13 @@ namespace App\Controller;
 
 use App\Entity\Ride;
 use App\Entity\User;
-use App\Repository\EcorideRepository;
+use App\Enum\RideStatus;
 use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
 use App\Service\MongoService;
+use App\Service\RidePayments;
+use DateTimeImmutable;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Nelmio\ApiDocBundle\Attribute\Model;
 use OpenApi\Attributes as OA;
@@ -24,6 +27,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
+use Throwable;
 
 #[Route('/api/ecoride/employee', name: 'app_api_ecoride_employee_')]
 #[OA\Tag(name: 'Employees')]
@@ -36,13 +40,15 @@ final class EmployeesController extends AbstractController
         private readonly EntityManagerInterface $manager,
         private readonly RideRepository         $repositoryRide,
         private readonly ValidationRepository   $repositoryValidation,
-        private readonly SerializerInterface    $serializer
+        private readonly SerializerInterface    $serializer,
+        private readonly MongoService           $mongoService,
+        private readonly RidePayments           $ridePayments,
     )
     {
     }
 
     #[Route('/showValidations', name: 'showValidations', methods: ['GET'])]
-    #[OA\Post(
+    #[OA\Get(
         path:"/api/ecoride/employee/showValidations",
         summary:"Récupération de la liste des covoiturages qui se sont mal déroulé"
     )]
@@ -51,7 +57,7 @@ final class EmployeesController extends AbstractController
         description: 'Liste des covoiturages trouvée avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read', 'ride_control'])
     )]
-    public function showValidations(#[CurrentUser] ?User $user, Request $request): JsonResponse
+    public function showValidations(#[CurrentUser] ?User $user): JsonResponse
     {
         $rides = $this->repositoryRide->findBy(['status' => ['BADEXP', 'AWAITINGVALIDATION']]);
         $filteredRides = array_filter($rides, function ($ride) use ($user) {
@@ -72,38 +78,90 @@ final class EmployeesController extends AbstractController
         return new JsonResponse($data, 200, [], true);
     }
 
-    #[Route('/supportValidations/{idValidation}', name: 'supportValidations', methods: ['PUT'])]
+    /**
+     * @throws Throwable
+     * @throws MongoDBException
+     */
+    #[Route('/supportValidation/{idValidation}', name: 'supportValidation', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/ecoride/employee/supportValidations/{idValidation}",
-        summary:"Prise en charge d'un covoiturage en attente de validation"
+        path:"/api/ecoride/employee/supportValidation/{idValidation}",
+        summary:"Prise en charge d'un covoiturage en attente de validation",
+        requestBody :new RequestBody(
+            description: "Données pour la prise en charge d'un covoiturage en attente de validation",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [
+                    new Property(
+                        property: "closeContent",
+                        type: "string",
+                        example: "En cours de contact avec le chauffeur"
+                    ),
+                ], type: "object"))]
+        ),
     )]
     #[OA\Response(
         response: 200,
-        description: 'Covoiturage pris en charge'
+        description: 'Covoiturage en cours de prise en charge'
     )]
     #[OA\Response(
         response: 404,
         description: 'Covoiturage non trouvé'
     )]
-    public function supportValidations(#[CurrentUser] ?User $user, int $idValidation): JsonResponse
+    public function supportValidation(#[CurrentUser] ?User $user, Request $request, int $idValidation): JsonResponse
     {
-        //Changement du statut du covoiturage en AWAITINGVALIDATION et supportBy de l'entité validation
+        //Changement du statut du covoiturage en AWAITINGVALIDATION et supportBy de l'entité validation si isClosed == false, getFinishedStatus si true
         $validation = $this->repositoryValidation->findOneBy(['id' => $idValidation]);
         if (!$validation)
         {
             return new JsonResponse(['message' => 'Validation non trouvée.'], Response::HTTP_NOT_FOUND);
         }
+        $dataRequest = $this->serializer->decode($request->getContent(), 'json');
+        if (!isset($dataRequest['closeContent']))
+        {
+            return new JsonResponse(['message' => 'Il faut mettre un commentaire de prise en charge.'], Response::HTTP_NOT_FOUND);
+        }
         $validation->setSupportBy($user);
-
-        $this->manager->persist($validation);
+        $validation->setCloseContent($dataRequest['closeContent']);
+        $validation->setUpdatedAt(new DateTimeImmutable());
 
         $ride = $this->repositoryRide->findOneBy(['id' => $validation->getRide()->getId()]);
-        $ride->setStatus('AWAITINGVALIDATION');
+
+        if (isset($dataRequest['isClosed']) && $dataRequest['isClosed'] === true)
+        {
+            $validation->setIsClosed(true);
+            $validation->setClosedBy($user);
+
+            //Compte des passagers
+            $nbPassengers = count($ride->getPassenger());
+            //Compte des validations
+            $nbValidations = count($ride->getValidations());
+
+            if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
+            {
+                //On paie le chauffeur, $nbPassengers * $ride→price – la commission
+                $this->ridePayments->driverPayment($ride, $nbPassengers);
+
+                $this->manager->persist($ride->getDriver());
+
+                $this->manager->flush();
+            }
+
+            $returnMessage = 'Validation clôturée. Covoiturage terminé.';
+        } else {
+            $ride->setStatus('AWAITINGVALIDATION');
+            $dataRequest['isClosed'] = false;
+            $returnMessage = 'Validation prise en charge.';
+        }
+
+        $this->manager->persist($validation);
 
         $this->manager->persist($ride);
         $this->manager->flush();
 
-        return new JsonResponse(['message' => 'Validation prise en charge.'], Response::HTTP_OK);
+        //Ajout du commentaire de prise en charge dans MongoDB pour historique
+        $this->mongoService->addValidationHistory($ride, $validation, $user, $dataRequest['closeContent'], $dataRequest['isClosed']);
+
+        return new JsonResponse(['message' => $returnMessage], Response::HTTP_OK);
     }
 
 

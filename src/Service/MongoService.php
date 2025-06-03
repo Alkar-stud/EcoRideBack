@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Document\MongoEcoRideCreditsTemp;
 use App\Document\MongoRideCredit;
 use App\Document\MongoRideNotice;
+use App\Document\MongoValidationHistory;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\MongoDBException;
@@ -27,7 +28,7 @@ class MongoService
      * @throws Throwable
      * @throws MongoDBException
      */
-    function addMovementCreditsForRides($ride, $user, $action, $reason, $montant): bool
+    public function addMovementCreditsForRides($ride, $user, $action, $reason, $montant): bool
     {
         $dm = $this->documentManager;
 
@@ -166,7 +167,7 @@ class MongoService
     {
         $dm = $this->documentManager;
 
-        //Récupération de la notice
+        //Récupération de l'avis
         $mongoNotice = $dm->getRepository(MongoRideNotice::class)->findOneBy(['_id' => $notice['id']]);
 
         if (!$mongoNotice)
@@ -187,6 +188,41 @@ class MongoService
         $dm->flush();
 
         return true;
+    }
+
+
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
+    function addValidationHistory($ride, $validation, $user, $Content, $isClosed = false): true
+    {
+        $dm = $this->documentManager;
+
+        $mongoValidationHistory = new MongoValidationHistory();
+        $mongoValidationHistory->setRideId($ride->getId());
+        $mongoValidationHistory->setValidationId($validation->getId());
+        $mongoValidationHistory->setUser($user->getId());
+        $mongoValidationHistory->setAddContent($Content);
+        if ($isClosed === true) {
+            $mongoValidationHistory->setUser($mongoValidationHistory->getUser());
+            $mongoValidationHistory->setIsClosed(true);
+            $mongoValidationHistory->setClosedBy($user->getId());
+        }
+        $mongoValidationHistory->setCreatedAt(new DateTimeImmutable());
+
+        $dm->persist($mongoValidationHistory);
+        $dm->flush();
+
+        return true;
+    }
+
+    function getValidationHistory($ride)
+    {
+        $dm = $this->documentManager;
+
+        //Récupération des validations
+        return $dm->getRepository(MongoValidationHistory::class)->findOneBy(['rideId' => $ride['id']]);
     }
 
 

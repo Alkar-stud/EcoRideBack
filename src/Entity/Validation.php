@@ -48,6 +48,10 @@ class Validation
     #[Groups(['ride_control'])]
     private ?User $closedBy = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['ride_control'])]
+    private ?string $closeContent = null;
+
     #[ORM\Column]
     #[Groups(['ride_control'])]
     private ?DateTimeImmutable $createdAt = null;
@@ -145,6 +149,17 @@ class Validation
         return $this;
     }
 
+    public function getCloseContent(): ?string
+    {
+        return $this->closeContent;
+    }
+
+    public function setCloseContent(?string $closeContent): static
+    {
+        $this->closeContent = $closeContent;
+
+        return $this;
+    }
 
     public function getCreatedAt(): ?DateTimeImmutable
     {
