@@ -59,9 +59,11 @@ class Ride
     private ?int $nbPlacesAvailable = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['ride_control'])]
     private ?DateTimeImmutable $actualDepartureAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['ride_control'])]
     private ?DateTimeImmutable $actualArrivalAt = null;
 
     #[ORM\Column(length: 50)]
@@ -79,22 +81,25 @@ class Ride
     private ?Vehicle $vehicle = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_control'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['ride_read', 'ride_control'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     /**
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'ridesPassenger')]
+    #[Groups(['ride_control'])]
     private Collection $passenger;
 
     /**
      * @var Collection<int, Validation>
      */
     #[ORM\OneToMany(targetEntity: Validation::class, mappedBy: 'ride')]
+    #[Groups(['ride_control'])]
     private Collection $validations;
 
     public function __construct()

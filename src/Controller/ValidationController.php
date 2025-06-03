@@ -113,13 +113,13 @@ final class ValidationController extends AbstractController
         $this->manager->persist($validation);
         $this->manager->flush();
 
-        //Si le user est le dernier à valider, ET que le statut n'est pas BADEXP, on clôture le covoiturage et on paye le chauffeur en retirant la commission
+        //Si le user est le dernier à valider, ET que le statut n'est pas BADEXP ou AWAITINGVALIDATION (BADEXP en cours de contrôle par un employé), on clôture le covoiturage et on paye le chauffeur en retirant la commission
         //Compte des passagers
         $nbPassengers = count($ride->getPassenger());
         //Compte des validations
         $nbValidations = count($ride->getValidations());
 
-        if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus())
+        if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
         {
             //Statut de fin par défaut
             $ride->setStatus(RideStatus::getFinishedStatus());

@@ -53,7 +53,17 @@ enum RideStatus: int
                 return $case->name;
             }
         }
-        return self::BADEXP->name; // Fallback si jamais la valeur 6 n'est pas trouvée
+        return self::BADEXP->name; // Fallback si jamais la valeur 7 n'est pas trouvée
+    }
+
+    public static function getBadExpStatusProcessing(): string
+    {
+        foreach (self::cases() as $case) {
+            if ($case->value === 5) {
+                return $case->name;
+            }
+        }
+        return self::AWAITINGVALIDATION->name; // Fallback si jamais la valeur 5 n'est pas trouvée
     }
 
     public static function getPossibleActions(): array

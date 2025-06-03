@@ -38,6 +38,7 @@ security:
         - { path: ^/api/ride/, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/ecoride, roles: PUBLIC_ACCESS } # Doit être désactivé en prod !!
+        - { path: ^/api/ecoride, roles: ROLE_EMPLOYEE }
         - { path: ^/api, roles: ROLE_USER }
 
     role_hierarchy:

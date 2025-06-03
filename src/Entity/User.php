@@ -19,10 +19,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['ride_control'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_control'])]
     private ?string $email = null;
 
     /**
@@ -67,14 +68,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $apiToken;
 
     #[ORM\Column]
+    #[Groups(['ride_control'])]
     private ?bool $isActive = true;
 
     #[ORM\Column]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_control'])]
     private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_account', 'ride_control'])]
     private ?DateTimeImmutable $updatedAt = null;
 
     /**

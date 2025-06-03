@@ -3,8 +3,10 @@
 namespace App\Entity;
 
 use App\Repository\ValidationRepository;
+use DateTimeImmutable;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: ValidationRepository::class)]
 class Validation
@@ -12,13 +14,16 @@ class Validation
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['ride_control'])]
     private ?int $id = null;
 
     #[ORM\Column]
+    #[Groups(['ride_control'])]
     private ?bool $isAllOk = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['ride_control'])]
     private ?User $passenger = null;
 
     #[ORM\ManyToOne(inversedBy: 'validations')]
@@ -26,19 +31,30 @@ class Validation
     private ?Ride $ride = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['ride_control'])]
     private ?string $content = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['ride_control'])]
+    private ?User $supportBy = null;
+
     #[ORM\Column(nullable: true)]
+    #[Groups(['ride_control'])]
     private ?bool $isClosed = null;
 
     #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['ride_control'])]
     private ?User $closedBy = null;
 
     #[ORM\Column]
-    private ?\DateTimeImmutable $createdAt = null;
+    #[Groups(['ride_control'])]
+    private ?DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $updatedAt = null;
+    #[Groups(['ride_control'])]
+    private ?DateTimeImmutable $updatedAt = null;
 
     public function getId(): ?int
     {
@@ -93,6 +109,18 @@ class Validation
         return $this;
     }
 
+    public function getSupportBy(): ?User
+    {
+        return $this->supportBy;
+    }
+
+    public function setSupportBy(?User $supportBy): static
+    {
+        $this->supportBy = $supportBy;
+
+        return $this;
+    }
+
     public function isClosed(): ?bool
     {
         return $this->isClosed;
@@ -117,24 +145,25 @@ class Validation
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTimeImmutable
+
+    public function getCreatedAt(): ?DateTimeImmutable
     {
         return $this->createdAt;
     }
 
-    public function setCreatedAt(\DateTimeImmutable $createdAt): static
+    public function setCreatedAt(DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
 
         return $this;
     }
 
-    public function getUpdatedAt(): ?\DateTimeImmutable
+    public function getUpdatedAt(): ?DateTimeImmutable
     {
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
+    public function setUpdatedAt(?DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
 
