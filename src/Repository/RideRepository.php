@@ -3,12 +3,12 @@
 namespace App\Repository;
 
 use App\Entity\Ride;
+use App\Enum\RideStatus;
+use DateTimeImmutable;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
-/**
- * @extends ServiceEntityRepository<Ride>
- */
 class RideRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -16,36 +16,100 @@ class RideRepository extends ServiceEntityRepository
         parent::__construct($registry, Ride::class);
     }
 
-//    /**
-//     * @return Ride[] Returns an array of Ride objects
-//     */
-    public function findBySomeField($criteria): array
+    /**
+     * Recherche des trajets en fonction des critères donnés
+     * @param array $criteria Les critères de recherche
+     * @return array Les trajets correspondants avec le nombre de places restantes
+     */
+    public function findBySomeField(array $criteria): array
     {
-        //La date ne va pas dans la requête, car on doit être capable de proposer après la date la plus proche.
+        $qb = $this->createBaseQueryBuilder($criteria);
+
+        $results = $qb->orderBy('r.startingAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $this->addRemainingSeatsInfo($results);
+    }
+
+    /**
+     * Trouve le trajet le plus proche avant la date donnée
+     * @param array $criteria Les critères de recherche
+     * @param DateTimeImmutable $searchDate La date de recherche
+     * @param DateTimeImmutable $minDate La date minimale (aujourd'hui)
+     * @return array|null Le trajet le plus proche ou null
+     */
+    public function findOneClosestBefore(array $criteria, DateTimeImmutable $searchDate, DateTimeImmutable $minDate): ?array
+    {
+        $qb = $this->createBaseQueryBuilder($criteria)
+            ->andWhere('r.startingAt < :searchDate')
+            ->setParameter('searchDate', $searchDate)
+            ->andWhere('r.startingAt >= :minDate')
+            ->setParameter('minDate', $minDate)
+            ->orderBy('r.startingAt', 'DESC')
+            ->setMaxResults(1);
+
+        $result = $qb->getQuery()->getResult();
+
+        return !empty($result) ? $this->addRemainingSeatsInfo([$result[0]])[0] : null;
+    }
+
+    /**
+     * Trouve le trajet le plus proche après la date donnée
+     * @param array $criteria Les critères de recherche
+     * @param DateTimeImmutable $searchDate La date de recherche
+     * @return array|null Le trajet le plus proche ou null
+     */
+    public function findOneClosestAfter(array $criteria, DateTimeImmutable $searchDate): ?array
+    {
+        $qb = $this->createBaseQueryBuilder($criteria)
+            ->andWhere('r.startingAt > :searchDate')
+            ->setParameter('searchDate', $searchDate)
+            ->orderBy('r.startingAt', 'ASC')
+            ->setMaxResults(1);
+
+        $result = $qb->getQuery()->getResult();
+
+        return !empty($result) ? $this->addRemainingSeatsInfo([$result[0]])[0] : null;
+    }
+
+    /**
+     * Crée un QueryBuilder de base avec les critères communs
+     * @param array $criteria Les critères de recherche
+     * @return QueryBuilder
+     */
+    private function createBaseQueryBuilder(array $criteria): QueryBuilder
+    {
         $qb = $this->createQueryBuilder('r')
             ->where('r.startingCity = :startingCity')
             ->setParameter('startingCity', $criteria['startingCity'])
             ->andWhere('r.arrivalCity = :arrivalCity')
             ->setParameter('arrivalCity', $criteria['arrivalCity'])
-            ->andWhere('r.arrivalCity = :arrivalCity')
-            ->setParameter('arrivalCity', $criteria['arrivalCity'])
             ->leftJoin('r.passenger', 'p')
             ->groupBy('r.id')
-            ->having('r.nbPlacesAvailable > COUNT(p.id)');
+            ->having('r.nbPlacesAvailable > COUNT(p.id)')
+            ->andWhere('r.status = :status')
+            ->setParameter('status', RideStatus::getDefaultStatus());
 
-        // Filtrer les trajets qui ont encore des places disponibles
-        $qb->groupBy('r.id')                // Regroupement par l'ID du trajet
-        ->having('r.nbPlacesAvailable > COUNT(p.id)'); // Vérification que le nombre de places disponibles est supérieur au nombre de passagers
+        $this->addOptionalFilters($qb, $criteria);
 
-        // Filtres optionnels
+        return $qb;
+    }
+
+    /**
+     * Ajoute les filtres optionnels à la requête
+     * @param QueryBuilder $qb Le query builder
+     * @param array $criteria Les critères
+     * @return void
+     */
+    private function addOptionalFilters(QueryBuilder $qb, array $criteria): void
+    {
         if (isset($criteria['maxPrice'])) {
             $qb->andWhere('r.price <= :maxPrice')
                 ->setParameter('maxPrice', $criteria['maxPrice']);
         }
 
         if (isset($criteria['maxDuration'])) {
-            // La durée est fournie en minutes, mais nous devons comparer avec
-            // la différence de temps entre arrivalAt et startingAt
             $qb->andWhere('TIMESTAMPDIFF(MINUTE, r.startingAt, r.arrivalAt) <= :maxDuration')
                 ->setParameter('maxDuration', $criteria['maxDuration']);
         }
@@ -61,29 +125,23 @@ class RideRepository extends ServiceEntityRepository
                 ->andWhere('v.energy = :ecoEnergy')
                 ->setParameter('ecoEnergy', 'ECO');
         }
+    }
 
-
-        // Filtre sur l'état du covoiturage (ne pas montrer les annulés, etc.)
-        $qb->andWhere('r.status = :status')
-            ->setParameter('status', 'COMING');
-
-
-        $results = $qb->orderBy('r.startingAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        // Ajouter le nombre de places restantes
+    /**
+     * Ajoute l'information sur le nombre de places restantes aux résultats
+     * @param array $rides Les trajets
+     * @return array Les trajets avec l'information sur les places restantes
+     */
+    private function addRemainingSeatsInfo(array $rides): array
+    {
         $ridesWithRemainingSeats = [];
-        foreach ($results as $ride) {
+        foreach ($rides as $ride) {
             $remainingSeats = $ride->getNbPlacesAvailable() - $ride->getPassenger()->count();
-            $rideArray = [
+            $ridesWithRemainingSeats[] = [
                 'ride' => $ride,
                 'remainingSeats' => $remainingSeats
             ];
-            $ridesWithRemainingSeats[] = $rideArray;
         }
-
         return $ridesWithRemainingSeats;
     }
-
 }

@@ -5,14 +5,16 @@ namespace App\Service;
 use App\Entity\Ride;
 use App\Entity\User;
 use App\Entity\Vehicle;
+use App\Enum\RideStatus;
 use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
 use DateTimeImmutable;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
-
+use Throwable;
 
 
 class RideService
@@ -23,6 +25,7 @@ class RideService
 
     public function __construct(
         private readonly EntityManagerInterface $manager,
+        private readonly RidePayments           $ridePayments,
         EcorideRepository                       $ecorideRepository,
         RideRepository                          $rideRepository,
         MailService                             $mailService,
@@ -134,6 +137,32 @@ class RideService
                 'vehicleIsChanged',
                 ['date' => $ride->getStartingAt()->format('d/m/Y H:i')]
             );
+        }
+    }
+
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
+    //Si le user est le dernier à valider, ET que le statut n'est pas BADEXP ou AWAITINGVALIDATION (BADEXP en cours de contrôle par un employé), on clôture le covoiturage et on paye le chauffeur en retirant la commission
+    public function checkValidationsAndPayment($ride): bool
+    {
+        //Compte des passagers
+        $nbPassengers = count($ride->getPassenger());
+        //Compte des validations
+        $nbValidations = count($ride->getValidations());
+
+        if ($nbValidations === $nbPassengers && ($ride->getStatus() !== RideStatus::getBadExpStatus() || $ride->getStatus() != RideStatus::getBadExpStatusProcessing()))
+        {
+            //On paie le chauffeur, $nbPassengers * $ride→price – la commission
+            $this->ridePayments->driverPayment($ride, $nbPassengers);
+
+            $this->manager->persist($ride->getDriver());
+            $this->manager->flush();
+
+            return true;
+        } else {
+            return false;
         }
     }
 

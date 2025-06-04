@@ -4,11 +4,10 @@ namespace App\Controller;
 
 use App\Entity\Ride;
 use App\Entity\User;
-use App\Enum\RideStatus;
 use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
 use App\Service\MongoService;
-use App\Service\RidePayments;
+use App\Service\RideService;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,6 +34,8 @@ use Throwable;
 #[IsGranted('ROLE_EMPLOYEE')]
 final class EmployeesController extends AbstractController
 {
+    private const NOTICE_REFUSED = 'REFUSED';
+    private const NOTICE_VALIDATED = 'VALIDATED';
 
     public function __construct(
         private readonly EntityManagerInterface $manager,
@@ -42,7 +43,8 @@ final class EmployeesController extends AbstractController
         private readonly ValidationRepository   $repositoryValidation,
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
-        private readonly RidePayments           $ridePayments,
+        private readonly RideService            $rideService,
+
     )
     {
     }
@@ -136,21 +138,8 @@ final class EmployeesController extends AbstractController
             $validation->setIsClosed(true);
             $validation->setClosedBy($user);
 
-            //Compte des passagers
-            $nbPassengers = count($ride->getPassenger());
-            //Compte des validations
-            $nbValidations = count($ride->getValidations());
-
-            if ($nbValidations === $nbPassengers && ($ride->getStatus() !== RideStatus::getBadExpStatus() || $ride->getStatus() != RideStatus::getBadExpStatusProcessing()))
-            {
-
-                //On paie le chauffeur, $nbPassengers * $ride→price – la commission
-                $this->ridePayments->driverPayment($ride, $nbPassengers);
-
-                $this->manager->persist($ride->getDriver());
-
-                $this->manager->flush();
-            }
+            //Si le user est le dernier à valider, on vérifie pour payer les différentes parties
+            $this->rideService->checkValidationsAndPayment($ride);
 
             $returnMessage = 'Validation clôturée. Covoiturage terminé.';
         } else {
@@ -171,10 +160,95 @@ final class EmployeesController extends AbstractController
     }
 
 
-    public function showNotices(Request $request): ?JsonResponse
+    #[Route('/showNotices', name: 'showNotices', methods: ['GET'])]
+    #[OA\Get(
+        path:"/api/ecoride/employee/showNotices",
+        summary:"Récupération de la liste des avis à valider"
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Liste des avis à valider trouvée avec succès'
+    )]
+    public function showNotices(): ?JsonResponse
     {
+        $notices = $this->mongoService->getAwaitingValidationNotices();
 
-        return null;
+        $data = $this->serializer->serialize($notices, 'json');
+
+        return new JsonResponse($data, 200, [], true);
+    }
+
+    #[Route('/validateNotice', name: 'validateNotice', methods: ['POST'])]
+    #[OA\Post(
+        path: "/api/ecoride/employee/validateNotice",
+        summary: "Valider ou refuser un avis",
+        requestBody: new RequestBody(
+            description: "Données nécessaires pour valider ou refuser un avis",
+            required: true,
+            content: [new MediaType(mediaType: "application/json",
+                schema: new Schema(properties: [
+                    new Property(
+                        property: "id",
+                        type: "string",
+                        example: "60f1a2b3c4d5e6f7g8h9i0j1"
+                    ),
+                    new Property(
+                        property: "action",
+                        type: "string",
+                        example: "VALIDATED"
+                    )
+                ], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Avis traité avec succès'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Requête invalide'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Avis non trouvé'
+    )]
+    public function validateNotice(#[CurrentUser] ?User $user, Request $request): JsonResponse
+    {
+        // Décoder les données de la requête
+        $dataRequest = $this->serializer->decode($request->getContent(), 'json');
+
+        // Vérifier que les paramètres requis sont présents
+        if (!isset($dataRequest['id']) || !isset($dataRequest['action'])) {
+            return new JsonResponse(['message' => 'Les paramètres id et action sont requis'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Vérifier que l'action est valide
+        if ($dataRequest['action'] !== self::NOTICE_REFUSED && $dataRequest['action'] !== self::NOTICE_VALIDATED) {
+            return new JsonResponse(
+                ['message' => 'L\'action doit être soit ' . self::NOTICE_REFUSED . ' soit ' . self::NOTICE_VALIDATED],
+                Response::HTTP_BAD_REQUEST
+            );
+        }
+
+        // Récupérer l'avis
+        $notice = $this->mongoService->findOneNotice($dataRequest['id']);
+        if (!$notice) {
+            return new JsonResponse(['message' => 'Avis non trouvé'], Response::HTTP_NOT_FOUND);
+        }
+
+        try {
+            // Passer directement l'action en majuscules comme attendu par updateNotice
+            $result = $this->mongoService->updateNotice(['id' => $dataRequest['id']], $user, $dataRequest['action']);
+
+            if (!$result) {
+                return new JsonResponse(['message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+            $actionFr = $dataRequest['action'] === self::NOTICE_VALIDATED ? 'validé' : 'refusé';
+            return new JsonResponse(['message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
+        } catch (MongoDBException|Throwable $e) {
+            return new JsonResponse(['message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
 

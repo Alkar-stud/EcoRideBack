@@ -7,7 +7,7 @@ use App\Entity\Validation;
 use App\Enum\RideStatus;
 use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
-use App\Service\RidePayments;
+use App\Service\RideService;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,7 +36,7 @@ final class ValidationController extends AbstractController
         private readonly RideRepository         $repository,
         private readonly ValidationRepository   $repositoryValidation,
         private readonly SerializerInterface    $serializer,
-        private readonly RidePayments           $ridePayments,
+        private readonly RideService            $rideService,
     )
     {
     }
@@ -111,21 +111,8 @@ final class ValidationController extends AbstractController
         $this->manager->persist($validation);
         $this->manager->flush();
 
-        //Si le user est le dernier à valider, ET que le statut n'est pas BADEXP ou AWAITINGVALIDATION (BADEXP en cours de contrôle par un employé), on clôture le covoiturage et on paye le chauffeur en retirant la commission
-        //Compte des passagers
-        $nbPassengers = count($ride->getPassenger());
-        //Compte des validations
-        $nbValidations = count($ride->getValidations());
-
-        if ($nbValidations === $nbPassengers && ($ride->getStatus() !== RideStatus::getBadExpStatus() || $ride->getStatus() != RideStatus::getBadExpStatusProcessing()))
-        {
-            //On paie le chauffeur, $nbPassengers * $ride→price – la commission
-            $this->ridePayments->driverPayment($ride, $nbPassengers);
-
-            $this->manager->persist($ride->getDriver());
-
-            $this->manager->flush();
-        }
+        //Si le user est le dernier à valider, on vérifie pour payer les différentes parties
+        $this->rideService->checkValidationsAndPayment($ride);
 
         return new JsonResponse(['message' => 'Votre validation a bien été envoyée.' . ($ride->getStatus() === RideStatus::getBadExpStatus() ? ' Un employé va vérifier votre réclamation.':'')], Response::HTTP_OK);
     }

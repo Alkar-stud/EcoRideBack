@@ -6,124 +6,110 @@ use App\Document\MongoEcoRideCreditsTemp;
 use App\Document\MongoRideCredit;
 use App\Document\MongoRideNotice;
 use App\Document\MongoValidationHistory;
+use App\Entity\Ride;
+use App\Entity\User;
+use App\Entity\Validation;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Throwable;
 
-
 class MongoService
 {
+    // Constantes pour les actions
+    public const ACTION_ADD = 'add';
+    public const ACTION_WITHDRAW = 'withdraw';
+
+    // Constantes pour les statuts
+    public const STATUS_AWAITING_VALIDATION = 'AWAITINGVALIDATION';
+
+    // Constantes pour les libellés
+    public const LABEL_TOTAL_CREDIT_TEMP = 'TOTAL_CREDIT_TEMP';
+
     public function __construct(
-        public DocumentManager $documentManager
-    )
-    {
+        private readonly DocumentManager $documentManager
+    ) {
     }
 
-    /*
-     * Pour ajouter le "log" des mouvements de credits, user ajoute à son compte, user dépense pour participer à un trajet, user reprend, car annule sa participation
-     * user-driver gagne parce que covoiturage est au statut FINISHED, EcoRide retire sa commission quand covoiturage passe au statut FINISHED
-     */
     /**
-     * @throws Throwable
-     * @throws MongoDBException
+     * SECTION: GESTION DES CRÉDITS
      */
-    public function addMovementCreditsForRides($ride, $user, $action, $reason, $montant): bool
+
+    /**
+     * Ajoute un mouvement de crédit lié à un trajet
+     * @throws Throwable|MongoDBException
+     */
+    public function addMovementCreditsForRides(Ride $ride, User $user, string $action, string $reason, float $montant): bool
     {
-        $dm = $this->documentManager;
-
         $mongoRideCredit = new MongoRideCredit();
-        $mongoRideCredit->setRideId($ride->getId());
-        $mongoRideCredit->setUser($user->getId());
-        if ($action == 'add') {
-            $mongoRideCredit->setAddCredit($montant);
-            $mongoRideCredit->setWithdrawCredit(0);
-        } elseif ($action == 'withdraw') {
-            $mongoRideCredit->setAddCredit(0);
-            $mongoRideCredit->setWithdrawCredit($montant);
-        } else {
-            return false;
-        }
+        $this->setRideCreditProperties($mongoRideCredit, $ride, $user, $action, $reason, $montant);
 
-        $mongoRideCredit->setReason($reason);
-        $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
+        $this->documentManager->persist($mongoRideCredit);
+        $this->documentManager->flush();
 
-        $dm->persist($mongoRideCredit);
-        $dm->flush();
-
-        //Mise à jour du crédit temporaire de EcoRide
         $this->updateCreditsEcoRide($mongoRideCredit->getAddCredit() - $mongoRideCredit->getWithdrawCredit());
 
         return true;
     }
 
-    /*
-     * Pour ajouter le "log" des mouvements de credits registration, ajout du crédit de bienvenue
-     */
     /**
-     * @throws MongoDBException
-     * @throws Throwable
+     * Ajoute un mouvement de crédit pour l'inscription
+     * @throws MongoDBException|Throwable
      */
-    function addMovementCreditsForRegistration($valeur, $user, $reason): bool
+    public function addMovementCreditsForRegistration(float $valeur, User $user, string $reason): bool
     {
-        $dm = $this->documentManager;
-
         $mongoRideCredit = new MongoRideCredit();
         $mongoRideCredit->setRideId(0);
         $mongoRideCredit->setUser($user->getId());
         $mongoRideCredit->setAddCredit($valeur);
         $mongoRideCredit->setWithdrawCredit(0);
-
         $mongoRideCredit->setReason($reason);
         $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
 
-        $dm->persist($mongoRideCredit);
-        $dm->flush();
+        $this->documentManager->persist($mongoRideCredit);
+        $this->documentManager->flush();
 
         return true;
     }
 
     /**
-     * @throws Throwable
-     * @throws MongoDBException
+     * Met à jour les crédits EcoRide
+     * @throws Throwable|MongoDBException
      */
-    function updateCreditsEcoRide($montant): true
+    public function updateCreditsEcoRide(float $montant): bool
     {
-        $dm = $this->documentManager;
-
-        $repo = $dm->getRepository(MongoEcoRideCreditsTemp::class);
-
-        $libelle = 'TOTAL_CREDIT_TEMP';
+        $repo = $this->documentManager->getRepository(MongoEcoRideCreditsTemp::class);
+        $libelle = self::LABEL_TOTAL_CREDIT_TEMP;
         $creditTemp = $repo->findOneBy(['libelle' => $libelle]);
 
         if ($creditTemp) {
-            $nouvelleValeur = $creditTemp->getValeur() + $montant;
-            $creditTemp->setValeur($nouvelleValeur);
-            $creditTemp->setUpdatedDate(new DateTimeImmutable());
+            $creditTemp->setValeur($creditTemp->getValeur() + $montant);
         } else {
             $creditTemp = new MongoEcoRideCreditsTemp();
             $creditTemp->setLibelle($libelle);
             $creditTemp->setValeur($montant);
-            $creditTemp->setUpdatedDate(new DateTimeImmutable());
-            $dm->persist($creditTemp);
-
+            $this->documentManager->persist($creditTemp);
         }
 
-        $dm->flush();
+        $creditTemp->setUpdatedDate(new DateTimeImmutable());
+        $this->documentManager->flush();
 
         return true;
     }
 
     /**
-     * @throws Throwable
-     * @throws MongoDBException
+     * SECTION : GESTION DES AVIS
      */
-    function addNotice($notice, $user, $ride): true
-    {
-        $dm = $this->documentManager;
 
+    /**
+     * Ajoute un avis
+     * @throws MongoDBException|Throwable
+     */
+    public function addNotice(array $notice, User $user, Ride $ride): bool
+    {
         $mongoNotice = new MongoRideNotice();
-        $mongoNotice->setStatus('AWAITINGVALIDATION');
+
+        $mongoNotice->setStatus(self::STATUS_AWAITING_VALIDATION);
         $mongoNotice->setGrade($notice['grade']);
         $mongoNotice->setTitle($notice['title'] ?? null);
         $mongoNotice->setContent($notice['content'] ?? null);
@@ -134,18 +120,17 @@ class MongoService
         $mongoNotice->setCreatedAt(new DateTimeImmutable());
         $mongoNotice->setUpdatedAt(null);
 
-        $dm->persist($mongoNotice);
-        $dm->flush();
+        $this->documentManager->persist($mongoNotice);
+        $this->documentManager->flush();
 
         return true;
     }
 
-    function searchNotice($user, $ride, $status = null): array
+    /**
+     * Recherche des avis
+     */
+    public function searchNotice(User $user, Ride $ride, ?string $status = null): array
     {
-        $dm = $this->documentManager;
-        $repo = $dm->getRepository(MongoRideNotice::class);
-
-        //Filtre en fonction du statut
         $criteria = [
             'publishedBy' => $user->getId(),
             'relatedFor' => $ride->getId()
@@ -155,75 +140,106 @@ class MongoService
             $criteria['status'] = $status;
         }
 
-        return $repo->findBy($criteria);
+        return $this->documentManager->getRepository(MongoRideNotice::class)->findBy($criteria);
     }
 
-
     /**
-     * @throws MongoDBException
-     * @throws Throwable
+     * Met à jour un avis
+     * @throws MongoDBException|Throwable
      */
-    function updateNotice($notice, $user, $action)
+    public function updateNotice(array $notice, User $user, string $action): bool
     {
-        $dm = $this->documentManager;
+        $mongoNotice = $this->documentManager->getRepository(MongoRideNotice::class)
+            ->findOneBy(['_id' => $notice['id']]);
 
-        //Récupération de l'avis
-        $mongoNotice = $dm->getRepository(MongoRideNotice::class)->findOneBy(['_id' => $notice['id']]);
-
-        if (!$mongoNotice)
-        {
+        if (!$mongoNotice) {
             return false;
         }
 
-        if ($action == 'validated')
-        {
-            $mongoNotice->setRefusedBy($user);
+        if ($action === 'VALIDATED') {
+            $mongoNotice->setStatus('VALIDATED');
+            $mongoNotice->setValidateBy($user->getId());
         } else {
-            $mongoNotice->setValidateBy($user);
+            $mongoNotice->setStatus('REFUSED');
+            $mongoNotice->setRefusedBy($user->getId());
         }
 
         $mongoNotice->setUpdatedAt(new DateTimeImmutable());
-
-        $dm->persist($mongoNotice);
-        $dm->flush();
+        $this->documentManager->persist($mongoNotice);
+        $this->documentManager->flush();
 
         return true;
     }
 
+    /**
+     * SECTION: GESTION DES VALIDATIONS
+     */
 
     /**
-     * @throws MongoDBException
-     * @throws Throwable
+     * Ajoute un historique de validation
+     * @throws MongoDBException|Throwable
      */
-    function addValidationHistory($ride, $validation, $user, $Content, $isClosed = false): true
+    public function addValidationHistory(Ride $ride, Validation $validation, User $user, string $content, bool $isClosed = false): bool
     {
-        $dm = $this->documentManager;
-
         $mongoValidationHistory = new MongoValidationHistory();
+
         $mongoValidationHistory->setRideId($ride->getId());
         $mongoValidationHistory->setValidationId($validation->getId());
         $mongoValidationHistory->setUser($user->getId());
-        $mongoValidationHistory->setAddContent($Content);
-        if ($isClosed === true) {
-            $mongoValidationHistory->setUser($mongoValidationHistory->getUser());
+        $mongoValidationHistory->setAddContent($content);
+
+        if ($isClosed) {
             $mongoValidationHistory->setIsClosed(true);
             $mongoValidationHistory->setClosedBy($user->getId());
         }
-        $mongoValidationHistory->setCreatedAt(new DateTimeImmutable());
 
-        $dm->persist($mongoValidationHistory);
-        $dm->flush();
+        $mongoValidationHistory->setCreatedAt(new DateTimeImmutable());
+        $this->documentManager->persist($mongoValidationHistory);
+        $this->documentManager->flush();
 
         return true;
     }
 
-    function getValidationHistory($ride)
+    /**
+     * Récupère l'historique de validation
+     */
+    public function getValidationHistory(array $ride): ?MongoValidationHistory
     {
-        $dm = $this->documentManager;
-
-        //Récupération des validations
-        return $dm->getRepository(MongoValidationHistory::class)->findOneBy(['rideId' => $ride['id']]);
+        return $this->documentManager->getRepository(MongoValidationHistory::class)
+            ->findOneBy(['rideId' => $ride['id']]);
     }
 
+    /**
+     * Définit les propriétés d'un crédit de trajet
+     */
+    private function setRideCreditProperties(MongoRideCredit $mongoRideCredit, Ride $ride, User $user, string $action, string $reason, float $montant): void
+    {
+        $mongoRideCredit->setRideId($ride->getId());
+        $mongoRideCredit->setUser($user->getId());
+
+        if ($action === self::ACTION_ADD) {
+            $mongoRideCredit->setAddCredit($montant);
+            $mongoRideCredit->setWithdrawCredit(0);
+        } elseif ($action === self::ACTION_WITHDRAW) {
+            $mongoRideCredit->setAddCredit(0);
+            $mongoRideCredit->setWithdrawCredit($montant);
+        }
+
+        $mongoRideCredit->setReason($reason);
+        $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
+    }
+
+    public function getAwaitingValidationNotices(): array
+    {
+        return $this->documentManager->getRepository(MongoRideNotice::class)
+            ->findBy(['status' => 'AWAITINGVALIDATION']);
+    }
+
+    public function findOneNotice(string $id)
+    {
+
+        return $this->documentManager->getRepository(MongoRideNotice::class)
+            ->findOneBy(['_id' => $id]);
+    }
 
 }

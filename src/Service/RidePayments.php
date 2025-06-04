@@ -65,6 +65,4 @@ readonly class RidePayments
 
     }
 
-
-
 }
