@@ -121,7 +121,7 @@ final class EcoRideController extends AbstractController{
     #[Route('/{id}', name: 'show', methods: 'GET')]
     #[OA\Get(
         path:"/api/ecoride/{id}",
-        summary:"Récupérer un paramètre de l'application.",
+        summary:"Récupérer un paramètre de l'application par l'ID.",
     )]
     #[OA\Response(
         response: 404,
@@ -136,6 +136,26 @@ final class EcoRideController extends AbstractController{
     {
 
         $ecoride = $this->repository->findOneBy(['id' => $id]);
+        if ($ecoride) {
+            return new JsonResponse(
+                [
+                    'id'  => $ecoride->getId(),
+                    'libelle'  => $ecoride->getLibelle(),
+                    'parameterValue' => $ecoride->getParameterValue(),
+                    'createdAt' => $ecoride->getCreatedAt(),
+                    'updateAt' => $ecoride->getUpdatedAt()
+                ],
+                Response::HTTP_OK
+            );
+        }
+
+        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+    }
+
+    public function showByLibelle(string $libelle): JsonResponse
+    {
+
+        $ecoride = $this->repository->findOneBy(['libelle' => $libelle]);
         if ($ecoride) {
             return new JsonResponse(
                 [

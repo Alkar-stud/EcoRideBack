@@ -31,13 +31,13 @@ class EcorideRepository extends ServiceEntityRepository
 //        ;
 //    }
 
-//    public function findOneBySomeField($value): ?Ecoride
-//    {
-//        return $this->createQueryBuilder('e')
-//            ->andWhere('e.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+    public function findOneByLibelle($libelle): ?Ecoride
+    {
+        return $this->createQueryBuilder('e')
+            ->andWhere('e.libelle = :libelle')
+            ->setParameter('libelle', $libelle)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
 }

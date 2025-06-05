@@ -2,10 +2,11 @@
 
 namespace App\Controller;
 
-use App\Entity\MailsType;
 use App\Entity\Preferences;
 use App\Entity\User;
 use App\Service\MailService;
+use App\Repository\EcorideRepository;
+use App\Service\MongoService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -43,6 +44,8 @@ class SecurityController extends AbstractController
         private readonly SerializerInterface         $serializer,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly MailService                 $mailService,
+        private readonly EcorideRepository           $ecorideRepository,
+        private readonly MongoService                $mongoService,
     )
     {
     }
@@ -109,6 +112,14 @@ class SecurityController extends AbstractController
             return new JsonResponse(['message' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial.'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Ajout des crédits de bienvenue s'il y en a
+        $ecorideTotalCredit   = $this->ecorideRepository->findOneByLibelle('TOTAL_CREDIT');
+        $ecorideWelcomeCredit = $this->ecorideRepository->findOneByLibelle('WELCOME_CREDIT');
+
+        //Mise à jour du crédit total
+        $ecorideTotalCredit->setParameterValue($ecorideTotalCredit->getParameterValue() - $ecorideWelcomeCredit->getParameterValue());
+
+        $user->setCredits($ecorideWelcomeCredit->getParameterValue());
 
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());
@@ -131,10 +142,13 @@ class SecurityController extends AbstractController
         //persister les préférences
         $this->manager->persist($smokingPreference);
         $this->manager->persist($petsPreference);
-        //persister l'utilisateur
 
+        //persister l'utilisateur
         $this->manager->persist($user);
         $this->manager->flush();
+
+        //Mise à jour des mouvements de crédits sur EcoRide
+        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
 
         //On envoie le mail type 'accountUserCreate' à l'utilisateur
         $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);
@@ -175,10 +189,23 @@ class SecurityController extends AbstractController
         response: 401,
         description: "Erreur dans les identifiants"
     )]
+    #[OA\Response(
+        response: 403,
+        description: "Ce compte est désactivé"
+    )]
+    #[OA\Response(
+        response: 404,
+        description: "Ce compte n'existe pas"
+    )]
     public function login(#[CurrentUser] ?User $user): JsonResponse
     {
         if (null === $user) {
             return new JsonResponse(['message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($user->isActive() === false)
+        {
+            return new JsonResponse(['message' => 'Ce compte est désactivé'], Response::HTTP_FORBIDDEN);
         }
 
         return new JsonResponse([

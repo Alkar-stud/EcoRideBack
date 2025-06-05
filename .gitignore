@@ -17,3 +17,6 @@
 ###> phpunit/phpunit ###
 /phpunit.xml*
 ###< phpunit/phpunit ###
+
+
+/*.txt

@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Repository\MailsTypeRepository;
+use InvalidArgumentException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
@@ -27,7 +28,7 @@ readonly class MailService
         $mail = $this->mailsTypeRepository->findOneBy(['code' => $codeMailType]);
 
         if (!$mail) {
-            throw new \InvalidArgumentException("Aucun mail trouvé pour le type : $codeMailType");
+            throw new InvalidArgumentException("Aucun mail trouvé pour le type : $codeMailType");
         }
 
         $subject = $mail->getSubject();
