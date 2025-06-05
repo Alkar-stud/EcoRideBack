@@ -32,7 +32,7 @@ jobs:
           REMOTE_PORT:            22
           TARGET:                 ~/api/
           SSH_CMD_ARGS:           "-o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
-          ARGS:                   "-rlgoDzvc --delete"
+          ARGS:                   "-rlgoDzvc -i"
           SCRIPT_BEFORE:          "unset SSH_AUTH_SOCK"
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
