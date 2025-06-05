@@ -32,5 +32,5 @@ jobs:
         run: composer dump-env prod
       - name: Clear cache
         run: bin/console cache:clear
-      - name: Running database migrations
-        run: bin/console doctrine:migrations:migrate
+#      - name: Running database migrations
+#        run: bin/console doctrine:migrations:migrate
