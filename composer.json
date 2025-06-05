@@ -30,6 +30,7 @@
         "symfony/property-access": "7.2.*",
         "symfony/property-info": "7.2.*",
         "symfony/rate-limiter": "7.2.*",
+        "symfony/requirements-checker": "^2.0",
         "symfony/runtime": "7.2.*",
         "symfony/security-bundle": "7.2.*",
         "symfony/serializer": "7.2.*",
@@ -80,7 +81,8 @@
     "scripts": {
         "auto-scripts": {
             "cache:clear": "symfony-cmd",
-            "assets:install %PUBLIC_DIR%": "symfony-cmd"
+            "assets:install %PUBLIC_DIR%": "symfony-cmd",
+            "requirements-checker": "script"
         },
         "post-install-cmd": [
             "@auto-scripts"
