@@ -186,7 +186,6 @@ final class RideController extends AbstractController
         description: 'Covoiturages trouvés avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read'])
     )]
-    #[IsGranted('ROLE_USER')]
     public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
         //Récupération du numéro de page et la limite par page
