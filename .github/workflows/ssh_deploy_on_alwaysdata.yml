@@ -22,5 +22,5 @@ jobs:
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
-#      - name: Install dependencies
-#        run: composer install
+      - name: Install npm dependencies
+        run: php composer install
