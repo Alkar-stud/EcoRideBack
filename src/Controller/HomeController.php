@@ -12,4 +12,10 @@ final class HomeController extends AbstractController{
     {
         return new Response('La doc de l\'API est <a href="/api/doc/">ici</a>', Response::HTTP_OK);
     }
+
+    #[Route('/api', name: 'app_home')]
+    public function indexApi(): Response
+    {
+        return new Response('La doc de l\'API est <a href="/api/doc/">ici</a>', Response::HTTP_OK);
+    }
 }
