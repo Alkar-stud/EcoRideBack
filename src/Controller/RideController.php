@@ -179,7 +179,7 @@ final class RideController extends AbstractController
     #[Route('/list/{state}', name: 'showAll', methods: 'GET')]
     #[OA\Get(
         path:"/api/ride/list/{state}",
-        summary:"Liste les covoiturages du User selon leur état.",
+        summary:"Liste les covoiturages selon leur état.",
     )]
     #[OA\Response(
         response: 200,
@@ -235,7 +235,7 @@ final class RideController extends AbstractController
             return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
-        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état pour cet utilisateur.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état.'], Response::HTTP_NOT_FOUND);
     }
 
     #[Route('/show/{id}', name: 'show', methods: 'GET')]
