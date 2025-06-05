@@ -7,8 +7,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Install composer dependencies
+        run: composer install --no-dev --optimize-autoloader
+        
       - name: Install symfony apache
-        run: composer require symfony/apache-pack --ignore-platform-req=ext-mongodb
+        run: composer require symfony/apache-pack
+
+      - name: ENV=prod
+        run: export SYMFONY_ENV=prod
+
+      - name: env prod
+        run: composer dump-env prod
+        
+      - name: Clear cache
+        run: bin/console cache:clear
+        
       - name: Deploy to Alwaysdata 🚀
         uses: easingthemes/ssh-deploy@main
         with:
@@ -24,13 +38,6 @@ jobs:
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
 
-      - name: ENV=prod
-        run: export SYMFONY_ENV=prod
-      - name: Install composer dependencies
-        run: composer install --optimize-autoloader --ignore-platform-req=ext-mongodb
-      - name: env prod
-        run: composer dump-env prod
-      - name: Clear cache
-        run: bin/console cache:clear
+
 #      - name: Running database migrations
 #        run: bin/console doctrine:migrations:migrate
