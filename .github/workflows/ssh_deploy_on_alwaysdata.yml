@@ -21,7 +21,7 @@ jobs:
         run: composer dump-env prod
         
       - name: Clear cache
-        run: bin/console cache:clear
+        run: bin/console cache:clear --no-dev
         
       - name: Deploy to Alwaysdata 🚀
         uses: easingthemes/ssh-deploy@main
