@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install composer dependencies
+      - name: Update composer dependencies
         run: composer update --optimize-autoloader --ignore-platform-req=ext-mongodb
         
       - name: Deploy to Alwaysdata 🚀
@@ -25,6 +25,3 @@ jobs:
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
-
-      - name: Running database migrations
-        run: bin/console doctrine:migrations:migrate
