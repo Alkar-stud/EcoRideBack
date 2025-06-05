@@ -22,10 +22,12 @@ jobs:
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
-      - name: Install composer dependencies
-        run: composer install --ignore-platform-req=ext-mongodb
       - name: Install symfony apache
         run: composer require symfony/apache-pack
+      - name: ENV=prod
+        run: export SYMFONY_ENV=prod
+      - name: Install composer dependencies
+        run: composer install --ignore-platform-req=ext-mongodb
       - name: Running database migrations
         run: bin/console doctrine:migrations:migrate
       - name: Clear cache
