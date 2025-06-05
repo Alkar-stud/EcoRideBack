@@ -23,16 +23,14 @@ jobs:
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
       - name: Install symfony apache
-        run: composer require symfony/apache-pack
+        run: composer require symfony/apache-pack --ignore-platform-req=ext-mongodb
       - name: ENV=prod
         run: export SYMFONY_ENV=prod
       - name: Install composer dependencies
-        run: composer install --ignore-platform-req=ext-mongodb
-      - name: Running database migrations
-        run: bin/console doctrine:migrations:migrate
-      - name: Clear cache
-        run: bin/console cache:clear
+        run: composer install --optimize-autoloader --ignore-platform-req=ext-mongodb
       - name: env prod
         run: composer dump-env prod
-      - name: Install/Update Vendors
-        run: composer install --optimize-autoloader --ignore-platform-req=ext-mongodb
+      - name: Clear cache
+        run: bin/console cache:clear
+      - name: Running database migrations
+        run: bin/console doctrine:migrations:migrate
