@@ -121,7 +121,6 @@ class SecurityController extends AbstractController
 
         $user->setCredits($ecorideWelcomeCredit->getParameterValue());
 
-
         $user->setPassword($passwordHasher->hashPassword($user, $user->getPassword()));
         $user->setCreatedAt(new DateTimeImmutable());
 
@@ -190,10 +189,23 @@ class SecurityController extends AbstractController
         response: 401,
         description: "Erreur dans les identifiants"
     )]
+    #[OA\Response(
+        response: 403,
+        description: "Ce compte est désactivé"
+    )]
+    #[OA\Response(
+        response: 404,
+        description: "Ce compte n'existe pas"
+    )]
     public function login(#[CurrentUser] ?User $user): JsonResponse
     {
         if (null === $user) {
             return new JsonResponse(['message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($user->isActive() === false)
+        {
+            return new JsonResponse(['message' => 'Ce compte est désactivé'], Response::HTTP_FORBIDDEN);
         }
 
         return new JsonResponse([
