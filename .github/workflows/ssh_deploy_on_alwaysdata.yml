@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy to Alwaysdata
+      - name: Deploy to Alwaysdata :rocket:
         uses: easingthemes/ssh-deploy@main
         with:
           SSH_PRIVATE_KEY:        ${{ secrets.SSH_KEY_ALWAYSDATA }}
@@ -23,10 +23,12 @@ jobs:
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
       - name: Install composer dependencies
-        run: composer install --no-dev --optimize-autoloader
+        run: composer install --optimize-autoloader
       - name: Running database migrations
         run: bin/console doctrine:migrations:migrate
       - name: Clear cache
         run: bin/console cache:clear
       - name: env prod
         run: composer dump-env prod
+      - name: Install/Update Vendors
+        run: composer install --no-dev --optimize-autoloader
