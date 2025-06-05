@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install composer dependencies
-        run: composer install --no-dev --optimize-autoloader --ignore-platform-req=ext-mongodb
+        run: composer install --optimize-autoloader --ignore-platform-req=ext-mongodb
         
       - name: Install symfony apache
         run: composer require symfony/apache-pack
@@ -21,7 +21,7 @@ jobs:
         run: composer dump-env prod
         
       - name: Clear cache
-        run: bin/console cache:clear --no-dev
+        run: bin/console cache:clear
         
       - name: Deploy to Alwaysdata 🚀
         uses: easingthemes/ssh-deploy@main
