@@ -24,6 +24,8 @@ jobs:
           SCRIPT_BEFORE_REQUIRED: true
       - name: Install composer dependencies
         run: composer install --ignore-platform-req=ext-mongodb
+      - name: Install symfony apache
+        run: composer require symfony/apache-pack
       - name: Running database migrations
         run: bin/console doctrine:migrations:migrate
       - name: Clear cache
