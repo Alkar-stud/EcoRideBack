@@ -12,7 +12,7 @@ jobs:
         run: composer install --optimize-autoloader --ignore-platform-req=ext-mongodb
         
       - name: Install symfony apache
-        run: composer require symfony/apache-pack
+        run: composer require symfony/apache-pack --ignore-platform-req=ext-mongodb
 
       - name: ENV=prod
         run: export SYMFONY_ENV=prod
