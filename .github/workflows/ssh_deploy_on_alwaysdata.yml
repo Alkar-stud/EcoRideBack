@@ -7,7 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
+      - name: Install symfony apache
+        run: composer require symfony/apache-pack --ignore-platform-req=ext-mongodb
       - name: Deploy to Alwaysdata 🚀
         uses: easingthemes/ssh-deploy@main
         with:
@@ -22,8 +23,7 @@ jobs:
           # paths to exclude separated by `,`, ie: `/dist/, /node_modules/`
           EXCLUDE: /.git/, /.github/, /.dockerignore, /Dockerfile, /.gitignore, /compose.override.yaml, docker-compose.yml
           SCRIPT_BEFORE_REQUIRED: true
-      - name: Install symfony apache
-        run: composer require symfony/apache-pack --ignore-platform-req=ext-mongodb
+
       - name: ENV=prod
         run: export SYMFONY_ENV=prod
       - name: Install composer dependencies
