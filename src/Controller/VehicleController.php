@@ -86,8 +86,7 @@ final class VehicleController extends AbstractController
                         property: "energy",
                         description: "Type d'énergie du véhicule",
                         type: "string",
-                        enum: EnergyEnum::NAMES,
-                        example: "ECO"
+                        example: "Électrique, Hybride ou Carburant inflammable"
                     ),
                 ], type: "object"))]
         ),
@@ -139,18 +138,20 @@ final class VehicleController extends AbstractController
         $energyName = $jsonData['energy'];
 
         // Récupère tous les noms des cas de l'énumération
-        $validCases = array_map(fn($case) => $case->name, EnergyEnum::cases());
+        $validEnergies = [];
+        foreach (EnergyEnum::cases() as $case) {
+            $validEnergies[$case->value] = $case->name;
+        }
 
         // Vérifie si la valeur fournie existe dans les noms de l'énumération
-        if (!in_array($energyName, $validCases)) {
+        if (!array_key_exists($energyName, $validEnergies)) {
             return new JsonResponse(
-                ['error' => true, 'message' => 'Type d\'énergie non reconnu: ' . $energyName],
+                ['error' => true, 'message' => 'Type d\'énergie non reconnue: ' . $energyName],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
 
-        $vehicle->setEnergy($energyName);
-
+        $vehicle->setEnergy($validEnergies[$energyName]);
 
         $vehicle->setLicenseFirstDate(new DateTime($jsonData['licenseFirstDate']));
         $vehicle->setMaxNbPlacesAvailable($jsonData['maxNbPlacesAvailable']);
