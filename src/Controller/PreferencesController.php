@@ -170,6 +170,10 @@ final class PreferencesController extends AbstractController
         description: 'Préférence supprimée avec succès'
     )]
     #[OA\Response(
+        response: 400,
+        description: 'Cette préférence ne peut pas être supprimée.'
+    )]
+    #[OA\Response(
         response: 404,
         description: 'Préférence non trouvée'
     )]
@@ -179,7 +183,7 @@ final class PreferencesController extends AbstractController
         if ($preferences) {
             //On ne supprime pas smokingAllowed et petsAllowed
             if ($preferences->getLibelle() === 'smokingAllowed' || $preferences->getLibelle() === 'petsAllowed') {
-                return new JsonResponse(['error' => true, 'message' => 'Cette préférence ne peut pas être supprimée.'], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['message' => 'Cette préférence ne peut pas être supprimée.'], Response::HTTP_BAD_REQUEST);
             }
             $this->manager->remove($preferences);
             $this->manager->flush();
@@ -187,6 +191,6 @@ final class PreferencesController extends AbstractController
             return new JsonResponse([], Response::HTTP_NO_CONTENT);
         }
 
-        return new JsonResponse(['error' => true, 'message' => 'Cette préférence n\'existe pas.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['message' => 'Cette préférence n\'existe pas.'], Response::HTTP_NOT_FOUND);
     }
 }
