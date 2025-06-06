@@ -192,6 +192,20 @@ final class VehicleController extends AbstractController
     {
         $vehicles = $this->repository->findBy(['owner' => $user->getId()]);
 
+        // Créer un mapping des codes d'énergie vers leurs valeurs descriptives
+        $energyMapping = [];
+        foreach (EnergyEnum::cases() as $case) {
+            $energyMapping[$case->name] = $case->value;
+        }
+
+        // Remplacer les codes d'énergie par leurs valeurs descriptives
+        foreach ($vehicles as $vehicle) {
+            $energyCode = $vehicle->getEnergy();
+            if (isset($energyMapping[$energyCode])) {
+                $vehicle->setEnergy($energyMapping[$energyCode]);
+            }
+        }
+
         return $this->json($vehicles, Response::HTTP_OK, [], ['groups' => 'user_account']);
     }
 
