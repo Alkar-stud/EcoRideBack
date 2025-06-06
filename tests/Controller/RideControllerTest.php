@@ -5,6 +5,7 @@ namespace App\Tests\Controller;
 use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Entity\Ride;
+use App\Service\AddressValidator;
 use DateTimeImmutable;
 use DateTime;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -263,7 +264,7 @@ class RideControllerTest extends WebTestCase
         $arrivalAt = $startingAt->modify('+2 hours');
 
         // Mock du validateur d'adresse
-        $addressValidatorMock = $this->createMock(\App\Service\AddressValidator::class);
+        $addressValidatorMock = $this->createMock(AddressValidator::class);
         $addressValidatorMock->method('validateAndDecomposeAddress')
             ->willReturnCallback(function ($address) {
                 if ($address === 'adresse invalide') {
@@ -601,7 +602,7 @@ class RideControllerTest extends WebTestCase
         // Envoi de la requête de mise à jour
         $this->client->request(
             'PUT',
-            '/api/ride/update/' . $startedRide->getId() . '',
+            '/api/ride/update/' . $startedRide->getId(),
             [],
             [],
             ['CONTENT_TYPE' => 'application/json'],
