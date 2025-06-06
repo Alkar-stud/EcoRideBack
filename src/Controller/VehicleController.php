@@ -134,24 +134,12 @@ final class VehicleController extends AbstractController
             return new JsonResponse(['error' => true, 'message' => 'JSON malformé: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
 
-        //Récupération de l'énergie via le Enum\EnergyEnum.php
+        // Récupération et validation de l'énergie
         $energyName = $jsonData['energy'];
-
-        // Récupère tous les noms des cas de l'énumération
-        $validEnergies = [];
-        foreach (EnergyEnum::cases() as $case) {
-            $validEnergies[$case->value] = $case->name;
+        $energyError = $this->validateAndSetEnergy($vehicle, $energyName);
+        if ($energyError !== null) {
+            return $energyError;
         }
-
-        // Vérifie si la valeur fournie existe dans les noms de l'énumération
-        if (!array_key_exists($energyName, $validEnergies)) {
-            return new JsonResponse(
-                ['error' => true, 'message' => 'Type d\'énergie non reconnue: ' . $energyName],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
-        }
-
-        $vehicle->setEnergy($validEnergies[$energyName]);
 
         $vehicle->setLicenseFirstDate(new DateTime($jsonData['licenseFirstDate']));
         $vehicle->setMaxNbPlacesAvailable($jsonData['maxNbPlacesAvailable']);
@@ -229,6 +217,20 @@ final class VehicleController extends AbstractController
         $vehicles = $this->repository->findBy(['id' => $id, 'owner' => $user->getId()]);
 
         if ($vehicles) {
+            // Créer un mapping des codes d'énergie vers leurs valeurs descriptives
+            $energyMapping = [];
+            foreach (EnergyEnum::cases() as $case) {
+                $energyMapping[$case->name] = $case->value;
+            }
+
+            // Remplacer les codes d'énergie par leurs valeurs descriptives
+            foreach ($vehicles as $vehicle) {
+                $energyCode = $vehicle->getEnergy();
+                if (isset($energyMapping[$energyCode])) {
+                    $vehicle->setEnergy($energyMapping[$energyCode]);
+                }
+            }
+
             $responseData = $this->serializer->serialize(
                 $vehicles,
                 'json',
@@ -287,16 +289,14 @@ final class VehicleController extends AbstractController
                         property: "energy",
                         description: "Type d'énergie du véhicule",
                         type: "string",
-                        enum: EnergyEnum::NAMES,
-                        example: "ECO"
+                        example: "Électrique, Hybride ou Carburant inflammable"
                     ),
                 ], type: "object"))]
         ),
     )]
     #[OA\Response(
         response: 200,
-        description: 'Véhicule modifié avec succès',
-        content: new Model(type: Vehicle::class, groups: ['vehicle_read'])
+        description: 'Véhicule modifié avec succès'
     )]
     #[OA\Response(
         response: 404,
@@ -309,6 +309,8 @@ final class VehicleController extends AbstractController
             return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
         }
 
+        $jsonData = json_decode($request->getContent(), true);
+
         $vehicle = $this->serializer->deserialize(
             $request->getContent(),
             Vehicle::class,
@@ -318,10 +320,10 @@ final class VehicleController extends AbstractController
                 AbstractNormalizer::IGNORED_ATTRIBUTES => ['owner']
             ]
         );
+
         //Vérification sur les données
         $checkVehicleRequirements = $this->checkVehicleRequirements($vehicle, $request);
-        if ($checkVehicleRequirements['error'] === true)
-        {
+        if ($checkVehicleRequirements['error'] === true) {
             return new JsonResponse(
                 [
                     'error' => true,
@@ -330,19 +332,12 @@ final class VehicleController extends AbstractController
                 ], Response::HTTP_BAD_REQUEST);
         }
 
-        //Récupération de l'énergie via le Enum\EnergyEnum.php
-        $energyName = $vehicle->getEnergy();
-        // Récupère tous les noms des cas de l'énumération
-        $validCases = array_map(fn($case) => $case->name, EnergyEnum::cases());
-
-        // Vérifie si la valeur fournie existe dans les noms de l'énumération
-        if (!in_array($energyName, $validCases)) {
-            return new JsonResponse(
-                ['error' => true, 'message' => 'Type d\'énergie non reconnu: ' . $energyName],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
+        // Récupération et validation de l'énergie
+        $energyName = $jsonData['energy'];
+        $energyError = $this->validateAndSetEnergy($vehicle, $energyName);
+        if ($energyError !== null) {
+            return $energyError;
         }
-
         $vehicle->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
@@ -432,6 +427,33 @@ final class VehicleController extends AbstractController
         }
 
         return ['error' => $isError, 'message' => $returnMessage, 'field' => $returnField];
+    }
+
+    /**
+     * Valide le type d'énergie et configure le véhicule
+     *
+     * @param Vehicle $vehicle Le véhicule à configurer
+     * @param string $energyValue La valeur d'énergie à valider (ex : "Électrique")
+     * @return JsonResponse|null Une réponse d'erreur ou null si la validation est réussie
+     */
+    private function validateAndSetEnergy(Vehicle $vehicle, string $energyValue): ?JsonResponse
+    {
+        // Récupère tous les noms des cas de l'énumération
+        $validEnergies = [];
+        foreach (EnergyEnum::cases() as $case) {
+            $validEnergies[$case->value] = $case->name;
+        }
+
+        // Vérifie si la valeur fournie existe dans les valeurs de l'énumération
+        if (!array_key_exists($energyValue, $validEnergies)) {
+            return new JsonResponse(
+                ['error' => true, 'message' => 'Type d\'énergie non reconnue: ' . $energyValue],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $vehicle->setEnergy($validEnergies[$energyValue]);
+        return null;
     }
 
 }
