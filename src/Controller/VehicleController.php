@@ -32,7 +32,6 @@ use Symfony\Component\Serializer\SerializerInterface;
 #[Areas(["default"])]
 final class VehicleController extends AbstractController
 {
-
     public function __construct(
         private readonly EntityManagerInterface $manager,
         private readonly VehicleRepository      $repository,
@@ -90,7 +89,6 @@ final class VehicleController extends AbstractController
                     ),
                 ], type: "object"))]
         ),
-
     )]
     #[OA\Response(
         response: 201,
@@ -101,7 +99,7 @@ final class VehicleController extends AbstractController
         description: 'Données invalides'
     )]
     #[OA\Response(
-        response: 422, // Unprocessable Entity - pour les erreurs sémantiques comme "énergie non trouvée"
+        response: 422,
         description: 'Erreur sémantique dans les données (ex: énergie non trouvée)'
     )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
@@ -110,7 +108,7 @@ final class VehicleController extends AbstractController
 
         try {
             // Décoder le contenu JSON une seule fois
-            $jsonData = json_decode($request->getContent(), true);
+            $jsonData = json_decode($rawContent, true);
 
             //Désérialiser l'objet Vehicle.
             $vehicle = $this->serializer->deserialize(
@@ -121,8 +119,7 @@ final class VehicleController extends AbstractController
 
             //Vérification sur les données
             $checkVehicleRequirements = $this->checkVehicleRequirements($vehicle, $request);
-            if ($checkVehicleRequirements['error'] === true)
-            {
+            if ($checkVehicleRequirements['error'] === true) {
                 return new JsonResponse(
                     [
                         'error' => true,
@@ -136,19 +133,18 @@ final class VehicleController extends AbstractController
 
         // Récupération et validation de l'énergie
         $energyName = $jsonData['energy'];
-        $energyError = $this->validateAndSetEnergy($vehicle, $energyName);
-        if ($energyError !== null) {
-            return $energyError;
+        $energyReturn = $this->validateEnergy($energyName);
+        if ($energyReturn instanceof JsonResponse) {
+            return $energyReturn;
         }
+        $vehicle->setEnergy($energyReturn);
 
         $vehicle->setLicenseFirstDate(new DateTime($jsonData['licenseFirstDate']));
         $vehicle->setMaxNbPlacesAvailable($jsonData['maxNbPlacesAvailable']);
 
-
         // Définir les propriétés gérées par le serveur
         $vehicle->setOwner($user);
         $vehicle->setCreatedAt(new DateTimeImmutable());
-
 
         // Persistance
         $this->manager->persist($vehicle);
@@ -162,7 +158,6 @@ final class VehicleController extends AbstractController
     }
 
     #[Route('/list', name: 'showAll', methods: 'GET')]
-    #[Areas(["default"])]
     #[OA\Get(
         path:"/api/vehicle/list",
         summary:"Récupérer tous les véhicules du User.",
@@ -180,25 +175,15 @@ final class VehicleController extends AbstractController
     {
         $vehicles = $this->repository->findBy(['owner' => $user->getId()]);
 
-        // Créer un mapping des codes d'énergie vers leurs valeurs descriptives
-        $energyMapping = [];
-        foreach (EnergyEnum::cases() as $case) {
-            $energyMapping[$case->name] = $case->value;
-        }
-
-        // Remplacer les codes d'énergie par leurs valeurs descriptives
+        // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
         foreach ($vehicles as $vehicle) {
-            $energyCode = $vehicle->getEnergy();
-            if (isset($energyMapping[$energyCode])) {
-                $vehicle->setEnergy($energyMapping[$energyCode]);
-            }
+            $this->convertEnergyCodeToValue($vehicle);
         }
 
         return $this->json($vehicles, Response::HTTP_OK, [], ['groups' => 'user_account']);
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
-    #[Areas(["default"])]
     #[OA\Get(
         path:"/api/vehicle/{id}",
         summary:"Récupérer un véhicule du User avec son ID.",
@@ -217,18 +202,9 @@ final class VehicleController extends AbstractController
         $vehicles = $this->repository->findBy(['id' => $id, 'owner' => $user->getId()]);
 
         if ($vehicles) {
-            // Créer un mapping des codes d'énergie vers leurs valeurs descriptives
-            $energyMapping = [];
-            foreach (EnergyEnum::cases() as $case) {
-                $energyMapping[$case->name] = $case->value;
-            }
-
-            // Remplacer les codes d'énergie par leurs valeurs descriptives
+            // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
             foreach ($vehicles as $vehicle) {
-                $energyCode = $vehicle->getEnergy();
-                if (isset($energyMapping[$energyCode])) {
-                    $vehicle->setEnergy($energyMapping[$energyCode]);
-                }
+                $this->convertEnergyCodeToValue($vehicle);
             }
 
             $responseData = $this->serializer->serialize(
@@ -247,7 +223,6 @@ final class VehicleController extends AbstractController
      * @throws Exception
      */
     #[Route('/{id}', name: 'edit', methods: ['PUT'])]
-    #[Areas(["default"])]
     #[OA\Put(
         path:"/api/vehicle/{id}",
         summary:"Modification d'un véhicule du User",
@@ -334,20 +309,24 @@ final class VehicleController extends AbstractController
 
         // Récupération et validation de l'énergie
         $energyName = $jsonData['energy'];
-        $energyError = $this->validateAndSetEnergy($vehicle, $energyName);
-        if ($energyError !== null) {
-            return $energyError;
+        $energyReturn = $this->validateEnergy($energyName);
+        if ($energyReturn instanceof JsonResponse) {
+            return $energyReturn;
         }
+        $vehicle->setEnergy($energyReturn);
+
         $vehicle->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
+
+        // Convertir le code d'énergie en valeur descriptive pour l'affichage
+        $this->convertEnergyCodeToValue($vehicle);
 
         $responseData = $this->serializer->serialize($vehicle, 'json', ['groups' => ['user_account']]);
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    #[Areas(["default"])]
     #[OA\Delete(
         path:"/api/vehicle/{id}",
         summary:"Supprimer un véhicule du User.",
@@ -373,6 +352,9 @@ final class VehicleController extends AbstractController
         return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
     }
 
+    /**
+     * Vérifie les exigences pour un véhicule valide
+     */
     private function checkVehicleRequirements(Vehicle $vehicle, Request $request): array
     {
         $isError = false;
@@ -430,13 +412,12 @@ final class VehicleController extends AbstractController
     }
 
     /**
-     * Valide le type d'énergie et configure le véhicule
+     * Valide le type d'énergie et retourne le code correspondant ou une erreur
      *
-     * @param Vehicle $vehicle Le véhicule à configurer
      * @param string $energyValue La valeur d'énergie à valider (ex : "Électrique")
-     * @return JsonResponse|null Une réponse d'erreur ou null si la validation est réussie
+     * @return string|JsonResponse Le code d'énergie ou une réponse d'erreur
      */
-    private function validateAndSetEnergy(Vehicle $vehicle, string $energyValue): ?JsonResponse
+    private function validateEnergy(string $energyValue): string|JsonResponse
     {
         // Récupère tous les noms des cas de l'énumération
         $validEnergies = [];
@@ -452,8 +433,22 @@ final class VehicleController extends AbstractController
             );
         }
 
-        $vehicle->setEnergy($validEnergies[$energyValue]);
-        return null;
+        return $validEnergies[$energyValue];
     }
 
+    /**
+     * Convertit le code d'énergie en valeur descriptive pour l'affichage
+     */
+    private function convertEnergyCodeToValue(Vehicle $vehicle): void
+    {
+        $energyMapping = [];
+        foreach (EnergyEnum::cases() as $case) {
+            $energyMapping[$case->name] = $case->value;
+        }
+
+        $energyCode = $vehicle->getEnergy();
+        if (isset($energyMapping[$energyCode])) {
+            $vehicle->setEnergy($energyMapping[$energyCode]);
+        }
+    }
 }
