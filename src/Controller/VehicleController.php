@@ -346,7 +346,7 @@ final class VehicleController extends AbstractController
             $this->manager->remove($vehicle);
             $this->manager->flush();
 
-            return new JsonResponse([], Response::HTTP_NO_CONTENT);
+            return new JsonResponse(['success' => true], Response::HTTP_OK);
         }
 
         return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
