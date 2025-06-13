@@ -456,9 +456,13 @@ class SecurityController extends AbstractController
                 // On met à jour l'utilisateur avec le nouveau nom de fichier
                 $user->setPhoto($newFilename);
                 $this->manager->flush();
-                return new JsonResponse(['success' => true, 'message' => 'Photo redimensionnée et uploadée avec succès'], Response::HTTP_OK);
+                return new JsonResponse([
+                    'success' => true,
+                    'message' => 'Photo redimensionnée et uploadée avec succès',
+                    'fileName' => $newFilename
+                ], Response::HTTP_OK);
             } catch (Exception $e) {
-                return new JsonResponse(['error' => true, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['success' => false, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
         }
 
