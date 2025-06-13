@@ -379,8 +379,18 @@ class SecurityController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Image envoyé avec succès',
-        content: new Model(type: User::class, groups: ['user_read'])
+        description: 'Image envoyée avec succès',
+        content: new MediaType(
+            mediaType: 'application/json',
+            schema: new Schema(
+                properties: [
+                    new Property(property: 'success', type: 'boolean', example: true),
+                    new Property(property: 'message', type: 'string', example: 'Message de succès'),
+                    new Property(property: 'fileName', type: 'string', example: 'abcdef1234567890.jpg')
+                ],
+                type: 'object'
+            )
+        )
     )]
     #[OA\Response(
         response: 400,
@@ -474,8 +484,11 @@ class SecurityController extends AbstractController
         } catch (FileException $e) {
             return new JsonResponse(['message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
-
-        return new JsonResponse(['message' => 'Photo uploadée avec succès'], Response::HTTP_OK);
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Photo uploadée avec succès',
+            'fileName' => $newFilename
+        ], Response::HTTP_OK);
     }
 
     private function resizeAvatar(mixed $photoFile): GdImage
