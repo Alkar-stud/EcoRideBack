@@ -8,6 +8,7 @@ use App\Service\MailService;
 use App\Repository\EcorideRepository;
 use App\Service\MongoService;
 use DateTimeImmutable;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use GdImage;
@@ -32,6 +33,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
+use Throwable;
 
 
 #[Route('/api', name: 'app_api_')]
@@ -148,7 +150,11 @@ class SecurityController extends AbstractController
         $this->manager->flush();
 
         //Mise à jour des mouvements de crédits sur EcoRide
-        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
+        try {
+            $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
+        } catch (MongoDBException|Throwable $e) {
+
+        }
 
         //On envoie le mail type 'accountUserCreate' à l'utilisateur
         $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);
