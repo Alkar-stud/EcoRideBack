@@ -100,6 +100,7 @@ final class PreferencesController extends AbstractController
             return new JsonResponse($result, Response::HTTP_NOT_FOUND);
         }
 
+        $result = array_merge(['success' => true], $result);
         return new JsonResponse($result, Response::HTTP_OK);
     }
 
