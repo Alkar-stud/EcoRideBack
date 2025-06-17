@@ -4,8 +4,9 @@ namespace App\Controller;
 
 use App\Entity\Preferences;
 use App\Entity\User;
-use App\Service\MailService;
 use App\Repository\EcorideRepository;
+use App\Service\MailService;
+use App\Service\VehicleService;
 use App\Service\MongoService;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
@@ -48,6 +49,7 @@ class SecurityController extends AbstractController
         private readonly MailService                 $mailService,
         private readonly EcorideRepository           $ecorideRepository,
         private readonly MongoService                $mongoService,
+        private readonly VehicleService              $vehicleService,
     )
     {
     }
@@ -241,6 +243,11 @@ class SecurityController extends AbstractController
         $this->denyAccessUnlessGranted('ROLE_USER');
         if (null === $user) {
             return new JsonResponse(['error' => true, 'message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
+        foreach ($user->getUserVehicles() as $vehicle) {
+            $this->vehicleService->convertEnergyCodeToValue($vehicle);
         }
 
         $responseData = $this->serializer->serialize(
