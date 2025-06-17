@@ -29,20 +29,6 @@ final class NoticesController extends AbstractController
     /**
      * Calcule et met à jour la note globale de l'utilisateur
      */
-    #[Route('/calculate-user-grade/{userId}', name: 'calculate_user_grade', methods: ['POST'])]
-    #[OA\Post(
-        path: "/api/notices/calculate-user-grade/{userId}",
-        summary: "Calcule et met à jour la note globale de l'utilisateur"
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'La note globale a été calculée et mise à jour avec succès'
-    )]
-    #[OA\Response(
-        response: 404,
-        description: 'Utilisateur non trouvé'
-    )]
-
     public function calculateUserGrade(int $userId): JsonResponse
     {
         // Récupérer l'utilisateur
