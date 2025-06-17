@@ -109,7 +109,7 @@ final class NoticesController extends AbstractController
     }
 
     /**
-     * Récupère toutes les notes validées d'un utilisateur conducteur
+     * Récupère tous les avis validés d'un utilisateur conducteur
      */
     #[Route('/{userId}', name: 'get_user_notices', methods: ['GET'])]
     #[OA\Get(
@@ -151,11 +151,10 @@ final class NoticesController extends AbstractController
         foreach ($rides as $ride) {
             $rideId = $ride->getId();
             $notices = $this->documentManager->getRepository(MongoRideNotice::class)
-                ->findBy(['relatedFor' => $rideId, 'status' => 'VALIDATED']);
+                ->findBy(['relatedFor' => $rideId, 'status' => 'VALIDATED'], ['createdAt' => -1]);
 
             $rideNotices = array_map(function($notice) {
                 return [
-                    'id' => $notice->getId(),
                     'title' => $notice->getTitle(),
                     'content' => $notice->getContent(),
                     'grade' => $notice->getGrade(),
@@ -166,7 +165,6 @@ final class NoticesController extends AbstractController
 
             if (!empty($rideNotices)) {
                 $noticesData[] = [
-                    'rideId' => $rideId,
                     'startingCity' => $ride->getStartingCity(),
                     'arrivalCity' => $ride->getArrivalCity(),
                     'startingAt' => $ride->getStartingAt() ? $ride->getStartingAt()->format('Y-m-d H:i:s') : null,
