@@ -44,7 +44,7 @@ final class EmployeesController extends AbstractController
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
         private readonly RideService            $rideService,
-
+        private readonly NoticesController      $noticesController
     )
     {
     }
@@ -195,7 +195,7 @@ final class EmployeesController extends AbstractController
                     new Property(
                         property: "action",
                         type: "string",
-                        example: "VALIDATED"
+                        example: "VALIDATED ou REFUSED"
                     )
                 ], type: "object"))]
         ),
@@ -244,12 +244,28 @@ final class EmployeesController extends AbstractController
                 return new JsonResponse(['message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
 
+            // Calculer la note de l'utilisateur si l'avis est validé
+            if ($dataRequest['action'] === self::NOTICE_VALIDATED) {
+                // Récupérer l'ID du ride associé à l'avis
+                $rideId = $notice->getRelatedFor();
+
+                // Récupérer le ride depuis la base de données
+                $ride = $this->repositoryRide->findOneBy(['id' => $rideId]);
+
+                if ($ride && $ride->getDriver()) {
+                    // Récupérer l'ID du conducteur du ride
+                    $driverId = $ride->getDriver()->getId();
+
+                    // Appeler la méthode pour calculer et mettre à jour la note du conducteur
+                    $this->noticesController->calculateUserGrade($driverId);
+                }
+            }
+
             $actionFr = $dataRequest['action'] === self::NOTICE_VALIDATED ? 'validé' : 'refusé';
             return new JsonResponse(['message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
         } catch (MongoDBException|Throwable $e) {
             return new JsonResponse(['message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
 
 }
