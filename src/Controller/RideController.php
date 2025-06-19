@@ -196,7 +196,7 @@ final class RideController extends AbstractController
         $queryBuilder = $this->repository->createQueryBuilder('r')
             ->where('r.driver = :driver')
             ->setParameter('driver', $user)
-            ->orderBy('r.createdAt', 'ASC');
+            ->orderBy('r.startingAt', 'ASC');
 
         //Selon le paramètre, on adapte le WHERE
         if ($state !== 'all') {
