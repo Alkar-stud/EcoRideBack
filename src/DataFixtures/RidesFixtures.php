@@ -33,7 +33,7 @@ class RidesFixtures extends Fixture
             return;
         }
 
-        $statuses = ['COMING', 'CANCELED'];
+        $statuses = ['COMING', 'CANCELED', 'FINISHED'];
         $totalRidesToCreate = 50;
         $driverCount = count($drivers);
 
@@ -81,8 +81,8 @@ class RidesFixtures extends Fixture
                 $ride->setArrivalAt($arrivalAt);
 
                 // Prix et places disponibles
-                $ride->setPrice($faker->numberBetween(500, 5000)); // en centimes (5€ à 50€)
-                $ride->setNbPlacesAvailable(rand(1, 4));
+                $ride->setPrice($faker->numberBetween(5, 50)); // en euro (5€ à 50€)
+                $ride->setNbPlacesAvailable(rand(1, 6));
 
                 // Statut
                 $ride->setStatus($statuses[array_rand($statuses)]);
