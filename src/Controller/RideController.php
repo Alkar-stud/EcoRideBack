@@ -217,6 +217,14 @@ final class RideController extends AbstractController
 
         $rides = $queryBuilder->getQuery()->getResult();
 
+        // Calculer le nombre réel de places disponibles pour chaque covoiturage
+        foreach ($rides as $ride) {
+            $totalPlaces = $ride->getNbPlacesAvailable();
+            $takenPlaces = $ride->getPassenger()->count();
+            $actualAvailablePlaces = max(0, $totalPlaces - $takenPlaces);
+            $ride->setNbPlacesAvailable($actualAvailablePlaces);
+        }
+
         if (count($rides) > 0) {
             $responseData = $this->serializer->serialize(
                 [
@@ -259,6 +267,12 @@ final class RideController extends AbstractController
         if (!$ride) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
+
+        // Calculer le nombre de places réellement disponibles
+        $totalPlaces = $ride->getNbPlacesAvailable();
+        $takenPlaces = $ride->getPassenger()->count();
+        $actualAvailablePlaces = max(0, $totalPlaces - $takenPlaces);
+        $ride->setNbPlacesAvailable($actualAvailablePlaces);
 
         if ($user) {
             $responseData = $this->serializer->serialize(
