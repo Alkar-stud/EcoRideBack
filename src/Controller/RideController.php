@@ -268,11 +268,6 @@ final class RideController extends AbstractController
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
-        // Calculer le nombre de places réellement disponibles
-        $totalPlaces = $ride->getNbPlacesAvailable();
-        $takenPlaces = $ride->getPassenger()->count();
-        $actualAvailablePlaces = max(0, $totalPlaces - $takenPlaces);
-        $ride->setNbPlacesAvailable($actualAvailablePlaces);
 
         if ($user) {
             $responseData = $this->serializer->serialize(
@@ -316,6 +311,16 @@ final class RideController extends AbstractController
                         property: "vehicle",
                         type: "integer",
                         example: 3
+                    ),
+                    new Property(
+                        property: "startingAt",
+                        type: "datetime",
+                        example: "2025-07-01 10:00:00"
+                    ),
+                    new Property(
+                        property: "arrivalAt",
+                        type: "datetime",
+                        example: "2025-07-01 12:00:00"
                     ),
                 ], type: "object"))]
         ),
@@ -370,10 +375,22 @@ final class RideController extends AbstractController
             if ($ride->{'get' . ucfirst($key)}() === $value) {
                 unset($dataRequestValidated[$key]);
             }
-            //Dans le cas où $ride->{'get' . ucfirst($key)}() est un objet entité
-            if (is_object($ride->{'get' . ucfirst($key)}())) {
-                if ($ride->{'get' . ucfirst($key)}()->getId() === $value) {
-                    unset($dataRequestValidated[$key]);
+            //Dans le cas où $ride->{'get' . ucfirst($key)}() est un objet
+            elseif (is_object($ride->{'get' . ucfirst($key)}())) {
+                $objectValue = $ride->{'get' . ucfirst($key)}();
+
+                // Si c'est un DateTime/DateTimeImmutable, comparer avec format de date
+                if ($objectValue instanceof \DateTimeInterface && is_string($value)) {
+                    $dateFormat = 'Y-m-d H:i:s';
+                    if ($objectValue->format($dateFormat) === (new DateTimeImmutable($value))->format($dateFormat)) {
+                        unset($dataRequestValidated[$key]);
+                    }
+                }
+                // Si c'est une entité avec getId()
+                elseif (method_exists($objectValue, 'getId')) {
+                    if ($objectValue->getId() === $value) {
+                        unset($dataRequestValidated[$key]);
+                    }
                 }
             }
         }
@@ -387,6 +404,41 @@ final class RideController extends AbstractController
         $passengers = $ride->getPassenger();
         $passengerCount = $passengers->count();
         $notifyPassengersAboutRideUpdate = false;
+
+        // Mettre à jour les dates si elles sont modifiées
+        if (isset($dataRequestValidated['startingAt'])) {
+            // Si c'est une chaîne, la convertir en DateTimeImmutable
+            if (is_string($dataRequestValidated['startingAt'])) {
+                try {
+                    $startingAt = new DateTimeImmutable($dataRequestValidated['startingAt']);
+                    $ride->setStartingAt($startingAt);
+                    if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+                } catch (Exception $e) {
+                    return new JsonResponse(['message' => "La date de départ n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                }
+            } else {
+                // Si c'est déjà un objet DateTimeImmutable
+                $ride->setStartingAt($dataRequestValidated['startingAt']);
+                if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+            }
+        }
+
+        if (isset($dataRequestValidated['arrivalAt'])) {
+            // Si c'est une chaîne, la convertir en DateTimeImmutable
+            if (is_string($dataRequestValidated['arrivalAt'])) {
+                try {
+                    $arrivalAt = new DateTimeImmutable($dataRequestValidated['arrivalAt']);
+                    $ride->setArrivalAt($arrivalAt);
+                    if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+                } catch (Exception $e) {
+                    return new JsonResponse(['message' => "La date d'arrivée n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                }
+            } else {
+                // Si c'est déjà un objet DateTimeImmutable
+                $ride->setArrivalAt($dataRequestValidated['arrivalAt']);
+                if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+            }
+        }
 
         //Si le véhicule est à changer, on vérifie qu'il existe et qu'il appartient au user
         if (isset($dataRequestValidated['vehicle'])) {
