@@ -99,7 +99,7 @@ final class RideParticipationController extends AbstractController
         ),
     )]
     #[OA\Response(
-        response: 201,
+        response: 200,
         description: 'Covoiturage(s) trouvé(s) avec succès',
         content: new Model(type: Ride::class, groups: ['ride_search'])
     )]
@@ -375,12 +375,12 @@ final class RideParticipationController extends AbstractController
      */
     private function transformAddresses(array $dataRequest): array
     {
-        $dataRequest['startingStreet'] = $dataRequest['startingAddress']['street'];
+        $dataRequest['startingStreet'] = $dataRequest['startingAddress']['street'] ?? '';
         $dataRequest['startingPostCode'] = $dataRequest['startingAddress']['postcode'];
         $dataRequest['startingCity'] = $dataRequest['startingAddress']['city'];
         unset($dataRequest['startingAddress']);
 
-        $dataRequest['arrivalStreet'] = $dataRequest['arrivalAddress']['street'];
+        $dataRequest['arrivalStreet'] = $dataRequest['arrivalAddress']['street'] ?? '';
         $dataRequest['arrivalPostCode'] = $dataRequest['arrivalAddress']['postcode'];
         $dataRequest['arrivalCity'] = $dataRequest['arrivalAddress']['city'];
         unset($dataRequest['arrivalAddress']);

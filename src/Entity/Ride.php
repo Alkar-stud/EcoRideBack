@@ -23,7 +23,7 @@ class Ride
     private ?string $startingStreet = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?string $startingPostCode = null;
 
     #[ORM\Column(length: 255)]
@@ -35,7 +35,7 @@ class Ride
     private ?string $arrivalStreet = null;
 
     #[ORM\Column(length: 20)]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?string $arrivalPostCode = null;
 
     #[ORM\Column(length: 255)]
