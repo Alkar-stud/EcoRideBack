@@ -92,7 +92,7 @@ class Ride
      * @var Collection<int, User>
      */
     #[ORM\ManyToMany(targetEntity: User::class, inversedBy: 'ridesPassenger')]
-    #[Groups(['ride_control'])]
+    #[Groups(['ride_control', 'ride_read'])]
     private Collection $passenger;
 
     /**

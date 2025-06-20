@@ -222,7 +222,6 @@ final class RideController extends AbstractController
             $totalPlaces = $ride->getNbPlacesAvailable();
             $takenPlaces = $ride->getPassenger()->count();
             $actualAvailablePlaces = max(0, $totalPlaces - $takenPlaces);
-            $ride->setNbPlacesAvailable($actualAvailablePlaces);
         }
 
         if (count($rides) > 0) {
@@ -442,14 +441,20 @@ final class RideController extends AbstractController
 
         //Si le véhicule est à changer, on vérifie qu'il existe et qu'il appartient au user
         if (isset($dataRequestValidated['vehicle'])) {
-            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $dataRequestValidated['vehicle'], 'owner' => $user->getId()]);
-            if (!$vehicle)
-            {
+            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy([
+                'id' => $dataRequestValidated['vehicle'],
+                'owner' => $user->getId()
+            ]);
+            if (!$vehicle) {
                 return new JsonResponse(["message" => "Le véhicule n'existe pas ou n'appartient pas à l'utilisateur"], Response::HTTP_BAD_REQUEST);
             }
-            $ride->setVehicle($vehicle);
-            //S'il y a des passagers, on les notifiera une fois flush
-            if ($passengerCount > 0 ) { $notifyPassengersAboutRideUpdate = true; }
+            // Vérifier si le véhicule a réellement changé
+            if ($ride->getVehicle()->getId() !== $vehicle->getId()) {
+                $ride->setVehicle($vehicle);
+                if ($passengerCount > 0) {
+                    $notifyPassengersAboutRideUpdate = true;
+                }
+            }
         }
 
         // Vérification du nombre de places
