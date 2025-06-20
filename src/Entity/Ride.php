@@ -19,7 +19,7 @@ class Ride
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['ride_read'])]
+    #[Groups(['ride_read', 'ride_search'])]
     private ?string $startingStreet = null;
 
     #[ORM\Column(length: 20)]
