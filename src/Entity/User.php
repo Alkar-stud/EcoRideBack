@@ -83,7 +83,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @var Collection<int, Preferences>
      */
     #[ORM\OneToMany(targetEntity: Preferences::class, mappedBy: 'user', orphanRemoval: true)]
-    #[Groups(['user_account', 'ride_search'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private Collection $userPreferences;
 
     /**
