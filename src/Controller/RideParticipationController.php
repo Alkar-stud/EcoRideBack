@@ -100,14 +100,10 @@ final class RideParticipationController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Covoiturage(s) trouvé(s) avec succès',
+        description: 'Covoiturage(s) trouvé(s) avec succès (la liste peut être vide)',
         content: new Model(type: Ride::class, groups: ['ride_search'])
     )]
-    #[OA\Response(
-        response: 404,
-        description: 'Aucun covoiturage trouvé'
-    )]
-    public function search(Request $request): JsonResponse
+    public function search(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
 
@@ -123,12 +119,26 @@ final class RideParticipationController extends AbstractController
         // Recherche des trajets
         $rides = $this->repository->findBySomeField($dataRequest);
 
-        // Si aucun trajet trouvé, chercher les trajets les plus proches
-        if (!$rides) {
-            return $this->findNearestRides($dataRequest);
+        // Suppression des covoiturages où le user est le chauffeur
+        if ($user && !empty($rides)) {
+            $filteredRides = [];
+            foreach ($rides as $rideData) {
+                // Vérifier si $rideData est un tableau ou un objet Ride
+                $ride = is_array($rideData) ? $rideData['ride'] : $rideData;
+
+                // Ne garder que les trajets où l'utilisateur n'est pas le conducteur
+                if ($ride instanceof Ride && $ride->getDriver()->getId() !== $user->getId()) {
+                    $filteredRides[] = $rideData;
+                }
+            }
+            $rides = $filteredRides;
         }
 
-        // Format de retour cohérent avec findNearestRides
+        // Si aucun trajet trouvé, chercher les trajets les plus proches
+        if (!$rides) {
+            return $this->findNearestRides($user, $dataRequest);
+        }
+
         $jsonContent = $this->serializer->serialize($rides, 'json', ['groups' => 'ride_search']);
         $responseData = [
             'rides' => json_decode($jsonContent, true),
@@ -168,27 +178,32 @@ final class RideParticipationController extends AbstractController
             return $this->createJsonError('Ce covoiturage n\'existe pas', Response::HTTP_NOT_FOUND);
         }
 
+        // Vérification si l'utilisateur est le conducteur
+        if ($ride->getDriver() === $user) {
+            return $this->createJsonError('Vous ne pouvez pas vous inscrire à votre propre covoiturage', Response::HTTP_FORBIDDEN);
+        }
+
         // Vérifications préalables
         if ($ride->getStatus() !== RideStatus::getDefaultStatus()) {
             return $this->createJsonError('L\'état de ce covoiturage ne permet pas l\'ajout de participants', Response::HTTP_FORBIDDEN);
         }
 
         if ($ride->getPassenger()->contains($user)) {
-            return $this->createJsonResponse('Vous êtes déjà inscrit à ce covoiturage.', Response::HTTP_OK);
+            return $this->createJsonError('Vous êtes déjà inscrit à ce covoiturage.', Response::HTTP_OK);
         }
 
         if ($ride->getNbPlacesAvailable() <= $ride->getPassenger()->count()) {
-            return $this->createJsonResponse('Il n\'y a plus de place disponible pour ce covoiturage.', Response::HTTP_OK);
+            return $this->createJsonError('Il n\'y a plus de place disponible pour ce covoiturage.', Response::HTTP_OK);
         }
 
         if ($user->getCredits() < $ride->getPrice()) {
-            return $this->createJsonResponse('Vous n\'avez pas assez de credit pour participer à ce covoiturage.', Response::HTTP_PAYMENT_REQUIRED);
+            return $this->createJsonError('Vous n\'avez pas assez de credit pour participer à ce covoiturage.', Response::HTTP_PAYMENT_REQUIRED);
         }
 
         // Traitement de l'ajout
         $this->processUserAddition($user, $ride);
 
-        return $this->createJsonResponse('Vous avez été ajouté à ce covoiturage', Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => 'Vous avez été ajouté à ce covoiturage'], Response::HTTP_OK);
     }
 
     /**
@@ -395,14 +410,10 @@ final class RideParticipationController extends AbstractController
     }
 
     /**
-     * Recherche les trajets les plus proches
+     * Recherche les trajets les plus proches en excluant ceux où l'utilisateur est conducteur
      * @throws Exception
      */
-    /**
-     * Recherche les trajets les plus proches
-     * @throws Exception
-     */
-    private function findNearestRides(array $dataRequest): JsonResponse
+    private function findNearestRides(?User $user, array $dataRequest): JsonResponse
     {
         $today = (new DateTimeImmutable())->setTime(0, 0, 0);
         $searchDate = new DateTimeImmutable($dataRequest['startingAt']);
@@ -414,8 +425,17 @@ final class RideParticipationController extends AbstractController
         $rideAfter = $this->repository->findOneClosestAfter($dataRequest, $searchDate);
 
         $ridesFound = [];
-        if ($rideBefore) $ridesFound[] = $rideBefore;
-        if ($rideAfter) $ridesFound[] = $rideAfter;
+        // Ajouter seulement si le conducteur n'est pas l'utilisateur courant
+        if ($rideBefore && ($user === null || $rideBefore->getDriver()->getId() !== $user->getId())) {
+            $ridesFound[] = $rideBefore;
+        }
+        // Correction : vérifier si $rideAfter est un tableau ou un objet
+        if ($rideAfter) {
+            $rideAfterObj = is_array($rideAfter) ? $rideAfter['ride'] : $rideAfter;
+            if ($user === null || $rideAfterObj->getDriver()->getId() !== $user->getId()) {
+                $ridesFound[] = $rideAfter;
+            }
+        }
 
         if (!empty($ridesFound)) {
             $jsonContent = $this->serializer->serialize($ridesFound, 'json', ['groups' => 'ride_search']);
@@ -429,7 +449,7 @@ final class RideParticipationController extends AbstractController
             return new JsonResponse($responseData, Response::HTTP_OK);
         }
 
-        return new JsonResponse(['error' => true, 'message' => 'Aucun covoiturage trouvé'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Aucun covoiturage trouvé'], Response::HTTP_OK);
     }
 
     /**
@@ -528,7 +548,7 @@ final class RideParticipationController extends AbstractController
      */
     private function createJsonError(string $message, int $status): JsonResponse
     {
-        return new JsonResponse(['message' => $message], $status);
+        return new JsonResponse(['error' => true, 'message' => $message], $status);
     }
 
     /**
