@@ -126,7 +126,7 @@ final class RideParticipationController extends AbstractController
                 // Vérifier si $rideData est un tableau ou un objet Ride
                 $ride = is_array($rideData) ? $rideData['ride'] : $rideData;
 
-                // Ne garder que les trajets où l'utilisateur n'est pas le conducteur
+                // Ne garder que les trajets dans lesquels l'utilisateur n'est pas le conducteur
                 if ($ride instanceof Ride && $ride->getDriver()->getId() !== $user->getId()) {
                     $filteredRides[] = $rideData;
                 }
@@ -238,7 +238,7 @@ final class RideParticipationController extends AbstractController
         }
 
         if (!$ride->getPassenger()->contains($user)) {
-            return $this->createJsonResponse('Vous n\'êtes pas inscrit à ce covoiturage.', Response::HTTP_OK);
+            return new JsonResponse(['success' => true, 'message' => 'Vous n\'êtes pas inscrit à ce covoiturage.'], Response::HTTP_OK);
         }
 
         // Traitement du retrait
