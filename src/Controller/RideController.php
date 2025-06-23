@@ -188,46 +188,65 @@ final class RideController extends AbstractController
     )]
     public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
-        //Récupération du numéro de page et la limite par page
+        // Récupération du numéro de page et la limite par page
         $page = max(1, $request->query->getInt('page', 1));
         $limit = $request->query->getInt('limit', 10);
 
-        //requête queryBuilder
-        $queryBuilder = $this->repository->createQueryBuilder('r')
-            ->where('r.driver = :driver')
-            ->setParameter('driver', $user)
+        // Requête pour les covoiturages en tant que chauffeur
+        $driverQueryBuilder = $this->repository->createQueryBuilder('r')
+            ->where('r.driver = :user')
+            ->setParameter('user', $user)
             ->orderBy('r.startingAt', 'ASC');
 
-        //Selon le paramètre, on adapte le WHERE
+        // Requête pour les covoiturages en tant que passager
+        $passengerQueryBuilder = $this->repository->createQueryBuilder('r')
+            ->where(':user MEMBER OF r.passenger')
+            ->setParameter('user', $user)
+            ->orderBy('r.startingAt', 'ASC');
+
+        // Appliquer le filtre de statut aux deux requêtes
         if ($state !== 'all') {
-            $queryBuilder
+            $driverQueryBuilder
+                ->andWhere('r.status = :status')
+                ->setParameter('status', $state);
+
+            $passengerQueryBuilder
                 ->andWhere('r.status = :status')
                 ->setParameter('status', $state);
         }
 
-        // Compter le nombre total d'éléments
-        $countQuery = clone $queryBuilder;
-        $totalItems = $countQuery->select('COUNT(r.id)')
-            ->getQuery()
-            ->getSingleScalarResult();
+        // Exécution des requêtes
+        $driverRides = $driverQueryBuilder->getQuery()->getResult();
+        $passengerRides = $passengerQueryBuilder->getQuery()->getResult();
 
-        // Ajouter la pagination
-        $queryBuilder->setFirstResult(($page - 1) * $limit)
-            ->setMaxResults($limit);
+        // Compter le nombre total d'éléments pour chaque catégorie
+        $totalDriverItems = count($driverRides);
+        $totalPassengerItems = count($passengerRides);
+        $totalItems = $totalDriverItems + $totalPassengerItems;
 
-        $rides = $queryBuilder->getQuery()->getResult();
+        // Appliquer la pagination manuellement sur les deux collections combinées
+        $allRides = array_merge($driverRides, $passengerRides);
+        usort($allRides, function($a, $b) {
+            return $a->getStartingAt() <=> $b->getStartingAt();
+        });
 
-        // Calculer le nombre réel de places disponibles pour chaque covoiturage
-        foreach ($rides as $ride) {
-            $totalPlaces = $ride->getNbPlacesAvailable();
-            $takenPlaces = $ride->getPassenger()->count();
-            $actualAvailablePlaces = max(0, $totalPlaces - $takenPlaces);
-        }
+        // Extraire seulement les éléments pour la page actuelle
+        $paginatedRides = array_slice($allRides, ($page - 1) * $limit, $limit);
 
-        if (count($rides) > 0) {
+        // Séparer à nouveau les résultats paginés
+        $paginatedDriverRides = array_filter($paginatedRides, function($ride) use ($user) {
+            return $ride->getDriver()->getId() === $user->getId();
+        });
+
+        $paginatedPassengerRides = array_filter($paginatedRides, function($ride) use ($user) {
+            return $ride->getPassenger()->contains($user);
+        });
+
+        if (!empty($paginatedRides)) {
             $responseData = $this->serializer->serialize(
                 [
-                    'rides' => $rides,
+                    'driverRides' => array_values($paginatedDriverRides),
+                    'passengerRides' => array_values($paginatedPassengerRides),
                     'pagination' => [
                         'page_courante' => $page,
                         'pages_totales' => ceil($totalItems / $limit),
