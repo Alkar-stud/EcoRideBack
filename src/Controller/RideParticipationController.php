@@ -128,8 +128,14 @@ final class RideParticipationController extends AbstractController
             return $this->findNearestRides($dataRequest);
         }
 
+        // Format de retour cohérent avec findNearestRides
         $jsonContent = $this->serializer->serialize($rides, 'json', ['groups' => 'ride_search']);
-        return new JsonResponse($jsonContent, Response::HTTP_OK, [], true);
+        $responseData = [
+            'rides' => json_decode($jsonContent, true),
+            'message' => 'ok'
+        ];
+
+        return new JsonResponse($responseData, Response::HTTP_OK);
     }
 
     /**
@@ -392,6 +398,10 @@ final class RideParticipationController extends AbstractController
      * Recherche les trajets les plus proches
      * @throws Exception
      */
+    /**
+     * Recherche les trajets les plus proches
+     * @throws Exception
+     */
     private function findNearestRides(array $dataRequest): JsonResponse
     {
         $today = (new DateTimeImmutable())->setTime(0, 0, 0);
@@ -409,10 +419,17 @@ final class RideParticipationController extends AbstractController
 
         if (!empty($ridesFound)) {
             $jsonContent = $this->serializer->serialize($ridesFound, 'json', ['groups' => 'ride_search']);
-            return new JsonResponse($jsonContent, Response::HTTP_OK, [], true);
+
+            // Convertir en tableau pour ajouter l'information supplémentaire
+            $responseData = [
+                'rides' => json_decode($jsonContent, true),
+                'message' => 'Aucun covoiturage trouvé à la date demandée. Voici les trajets les plus proches disponibles.'
+            ];
+
+            return new JsonResponse($responseData, Response::HTTP_OK);
         }
 
-        return $this->createJsonError('Aucun covoiturage trouvé', Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Aucun covoiturage trouvé'], Response::HTTP_NOT_FOUND);
     }
 
     /**
