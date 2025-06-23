@@ -261,7 +261,11 @@ final class RideController extends AbstractController
             return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
-        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse([
+            'message' => 'Il n\'y a pas de covoiturage dans cet état.',
+            'driverRides' => [],
+            'passengerRides' => []
+            ], Response::HTTP_OK);
     }
 
     #[Route('/show/{id}', name: 'show', methods: 'GET')]
