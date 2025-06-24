@@ -344,14 +344,25 @@ final class VehicleController extends AbstractController
     public function delete(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
         $vehicle = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
-        if ($vehicle) {
-            $this->manager->remove($vehicle);
-            $this->manager->flush();
 
-            return new JsonResponse(['success' => true], Response::HTTP_OK);
+        if (!$vehicle) {
+            return new JsonResponse(['error' => true, 'message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_OK);
         }
 
-        return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
+        // Vérifier si le véhicule est utilisé dans un covoiturage actif
+        foreach ($vehicle->getRidesVehicle() as $ride) {
+            if (!in_array($ride->getStatus(), ['CANCELED', 'FINISHED'])) {
+                return new JsonResponse([
+                    'error' => true,
+                    'message' => 'Impossible de supprimer ce véhicule : il est utilisé dans un covoiturage en cours ou à venir.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        $this->manager->remove($vehicle);
+        $this->manager->flush();
+
+        return new JsonResponse(['success' => true], Response::HTTP_OK);
     }
 
     /**
