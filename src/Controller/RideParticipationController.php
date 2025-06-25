@@ -369,7 +369,7 @@ final class RideParticipationController extends AbstractController
             $labels[$case->name] = $case->getLabel();
         }
 
-        return $this->createJsonResponse('Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"', Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => 'Le covoiturage est maintenant en statut "' . $labels[$ride->getStatus()] . '"'], Response::HTTP_OK);
     }
 
     /**
