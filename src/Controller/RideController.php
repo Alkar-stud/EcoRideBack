@@ -184,7 +184,33 @@ final class RideController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Covoiturages trouvés avec succès',
-        content: new Model(type: Ride::class, groups: ['ride_read'])
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(
+                    property: "driverRides",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Ride::class, groups: ['ride_read']))
+                ),
+                new OA\Property(
+                    property: "passengerRides",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Ride::class, groups: ['ride_read']))
+                ),
+                new OA\Property(property: "isDriver", type: "boolean"),
+                new OA\Property(property: "isPassenger", type: "boolean"),
+                new OA\Property(
+                    property: "pagination",
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "page_courante", type: "integer"),
+                        new OA\Property(property: "pages_totales", type: "integer"),
+                        new OA\Property(property: "elements_totaux", type: "integer"),
+                        new OA\Property(property: "elements_par_page", type: "integer"),
+                    ]
+                ),
+            ],
+            type: "object"
+        )
     )]
     public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
@@ -247,6 +273,8 @@ final class RideController extends AbstractController
                 [
                     'driverRides' => array_values($paginatedDriverRides),
                     'passengerRides' => array_values($paginatedPassengerRides),
+                    'isDriver' => $user->isDriver(),
+                    'isPassenger' => $user->isPassenger(),
                     'pagination' => [
                         'page_courante' => $page,
                         'pages_totales' => ceil($totalItems / $limit),
