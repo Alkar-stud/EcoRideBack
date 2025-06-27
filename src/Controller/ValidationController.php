@@ -73,6 +73,10 @@ final class ValidationController extends AbstractController
         description: 'Validation du covoiturage ajouté avec succès'
     )]
     #[OA\Response(
+        response: 400,
+        description: 'Vous avez déjà envoyé une validation'
+    )]
+    #[OA\Response(
         response: 404,
         description: 'Covoiturage non trouvé'
     )]
@@ -86,7 +90,10 @@ final class ValidationController extends AbstractController
 
         if ($isOneValidation)
         {
-            return new JsonResponse(['message' => 'Vous avez déjà envoyé une validation. Si vous voulez la modifier, veuillez utiliser le formulaire de contact.'], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse([
+                'error' => true,
+                'message' => 'Vous avez déjà envoyé une validation. Si vous voulez la modifier, veuillez utiliser le formulaire de contact.'],
+                Response::HTTP_BAD_REQUEST);
         }
 
         //Récupération du covoiturage
@@ -114,6 +121,9 @@ final class ValidationController extends AbstractController
         //Si le user est le dernier à valider, on vérifie pour payer les différentes parties
         $this->rideService->checkValidationsAndPayment($ride);
 
-        return new JsonResponse(['message' => 'Votre validation a bien été envoyée.' . ($ride->getStatus() === RideStatus::getBadExpStatus() ? ' Un employé va vérifier votre réclamation.':'')], Response::HTTP_OK);
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Votre validation a bien été envoyée.' . ($ride->getStatus() === RideStatus::getBadExpStatus() ? ' Un employé va vérifier votre réclamation.':'')
+        ], Response::HTTP_OK);
     }
 }
