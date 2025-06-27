@@ -156,7 +156,7 @@ final class EmployeesController extends AbstractController
         //Ajout du commentaire de prise en charge dans MongoDB pour historique
         $this->mongoService->addValidationHistory($ride, $validation, $user, $dataRequest['closeContent'], $dataRequest['isClosed']);
 
-        return new JsonResponse(['message' => $returnMessage], Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => $returnMessage], Response::HTTP_OK);
     }
 
 
@@ -219,13 +219,16 @@ final class EmployeesController extends AbstractController
 
         // Vérifier que les paramètres requis sont présents
         if (!isset($dataRequest['id']) || !isset($dataRequest['action'])) {
-            return new JsonResponse(['message' => 'Les paramètres id et action sont requis'], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => true, 'message' => 'Les paramètres id et action sont requis'], Response::HTTP_BAD_REQUEST);
         }
 
         // Vérifier que l'action est valide
         if ($dataRequest['action'] !== self::NOTICE_REFUSED && $dataRequest['action'] !== self::NOTICE_VALIDATED) {
             return new JsonResponse(
-                ['message' => 'L\'action doit être soit ' . self::NOTICE_REFUSED . ' soit ' . self::NOTICE_VALIDATED],
+                [
+                    'error' => true,
+                    'message' => 'L\'action doit être soit ' . self::NOTICE_REFUSED . ' soit ' . self::NOTICE_VALIDATED
+                ],
                 Response::HTTP_BAD_REQUEST
             );
         }
