@@ -52,22 +52,54 @@ final class EmployeesController extends AbstractController
     #[Route('/showValidations', name: 'showValidations', methods: ['GET'])]
     #[OA\Get(
         path:"/api/ecoride/employee/showValidations",
-        summary:"Récupération de la liste des covoiturages qui se sont mal déroulé"
+        summary:"Récupération de la liste des covoiturages qui se sont mal déroulé",
+        parameters: [
+            new OA\Parameter(
+                name: "isClosed",
+                description: "Filtrer sur isClosed (true ou false)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "boolean", default: false)
+            ),
+            new OA\Parameter(
+                name: "page",
+                description: "Numéro de page (défaut: 1)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre d'éléments par page (défaut: 10)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 10)
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
         description: 'Liste des covoiturages trouvée avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read', 'ride_control'])
     )]
-    public function showValidations(#[CurrentUser] ?User $user): JsonResponse
+    public function showValidations(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
-        $rides = $this->repositoryRide->findBy(['status' => ['BADEXP', 'AWAITINGVALIDATION']]);
+        $isClosed = filter_var($request->query->get('isClosed', false), FILTER_VALIDATE_BOOLEAN);
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, (int)$request->query->get('limit', 10));
+
+        $rides = $this->repositoryRide->createQueryBuilder('r')
+            ->join('r.validations', 'v')
+            ->where('v.isClosed = :closed')
+            ->setParameter('closed', $isClosed)
+            ->orderBy('v.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
         $filteredRides = array_filter($rides, function ($ride) use ($user) {
-            // Exclure si le user est conducteur
             if ($ride->getDriver() && $ride->getDriver()->getId() === $user->getId()) {
                 return false;
             }
-            // Exclure si le user est passager
             foreach ($ride->getPassenger() as $passenger) {
                 if ($passenger->getId() === $user->getId()) {
                     return false;
@@ -75,10 +107,22 @@ final class EmployeesController extends AbstractController
             }
             return true;
         });
-        $data = $this->serializer->serialize($filteredRides, 'json', ['groups' => ['ride_read', 'ride_control']]);
 
-        return new JsonResponse($data, 200, [], true);
+        $total = count($filteredRides);
+        $filteredRides = array_values($filteredRides); // Réindexer
+        $offset = ($page - 1) * $limit;
+        $paginatedRides = array_slice($filteredRides, $offset, $limit);
+
+        $data = $this->serializer->serialize($paginatedRides, 'json', ['groups' => ['ride_read', 'ride_control']]);
+
+        return new JsonResponse([
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'data' => json_decode($data)
+        ], 200);
     }
+
 
     /**
      * @throws Throwable
