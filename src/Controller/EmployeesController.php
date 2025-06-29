@@ -272,19 +272,15 @@ final class EmployeesController extends AbstractController
         $limit = max(1, (int)$request->query->get('limit', 10));
         $isValidated = $request->query->has('isValidated') ? filter_var($request->query->get('isValidated'), FILTER_VALIDATE_BOOLEAN) : null;
 
-        $notices = $this->mongoService->getAwaitingValidationNotices();
-
+        $notices = $this->mongoService->getNoticesProcessed($isValidated);
         // Filtrage selon le statut
         if ($isValidated !== null) {
             $notices = array_filter($notices, function ($notice) use ($isValidated) {
-                if (!method_exists($notice, 'getStatus')) {
-                    return false;
-                }
                 $status = $notice->getStatus();
                 if ($isValidated) {
-                    return $status === 'VALIDATED';
+                    return $status !== 'AWAITINGVALIDATION';
                 } else {
-                    return $status !== 'VALIDATED';
+                    return $status === 'AWAITINGVALIDATION';
                 }
             });
         }
@@ -382,7 +378,7 @@ final class EmployeesController extends AbstractController
         // Récupérer l'avis
         $notice = $this->mongoService->findOneNotice($dataRequest['id']);
         if (!$notice) {
-            return new JsonResponse(['message' => 'Avis non trouvé'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => true, 'message' => 'Avis non trouvé'], Response::HTTP_NOT_FOUND);
         }
 
         try {
@@ -390,7 +386,7 @@ final class EmployeesController extends AbstractController
             $result = $this->mongoService->updateNotice(['id' => $dataRequest['id']], $user, $dataRequest['action']);
 
             if (!$result) {
-                return new JsonResponse(['message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['error' => true, 'message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
 
             // Calculer la note de l'utilisateur si l'avis est validé
@@ -411,9 +407,9 @@ final class EmployeesController extends AbstractController
             }
 
             $actionFr = $dataRequest['action'] === self::NOTICE_VALIDATED ? 'validé' : 'refusé';
-            return new JsonResponse(['message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
+            return new JsonResponse(['success' => true, 'message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
         } catch (MongoDBException|Throwable $e) {
-            return new JsonResponse(['message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return new JsonResponse(['error' => true, 'message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

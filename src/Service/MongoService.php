@@ -229,10 +229,18 @@ class MongoService
         $mongoRideCredit->setCreatedDate(new DateTimeImmutable());
     }
 
-    public function getAwaitingValidationNotices(): array
+    public function getNoticesProcessed($isValidated = false): array
     {
-        return $this->documentManager->getRepository(MongoRideNotice::class)
-            ->findBy(['status' => 'AWAITINGVALIDATION']);
+        if ($isValidated) {
+            // Statut différent de AWAITINGVALIDATION
+            return $this->documentManager->getRepository(MongoRideNotice::class)
+                ->findBy(['status' => ['$ne' => self::STATUS_AWAITING_VALIDATION]]);
+        } else {
+            // Statut égal à AWAITINGVALIDATION
+            return $this->documentManager->getRepository(MongoRideNotice::class)
+                ->findBy(['status' => self::STATUS_AWAITING_VALIDATION]);
+        }
+
     }
 
     public function findOneNotice(string $id)
