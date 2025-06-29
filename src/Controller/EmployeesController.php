@@ -8,6 +8,7 @@ use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
 use App\Service\MongoService;
 use App\Service\RideService;
+use App\Document\MongoRideNotice;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -210,6 +211,13 @@ final class EmployeesController extends AbstractController
         summary:"Récupération de la liste des avis à valider",
         parameters: [
             new OA\Parameter(
+                name: "isValidated",
+                description: "Filtrer sur le statut de validation (true : validé, false : en attente/refusé)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "boolean", default: false)
+            ),
+            new OA\Parameter(
                 name: "page",
                 description: "Numéro de page (défaut: 1)",
                 in: "query",
@@ -227,27 +235,92 @@ final class EmployeesController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Liste des avis à valider trouvée avec succès'
+        description: 'Liste des avis à valider trouvée avec succès',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "page", type: "integer", example: 1),
+                new OA\Property(property: "limit", type: "integer", example: 10),
+                new OA\Property(property: "total", type: "integer", example: 42),
+                new OA\Property(
+                    property: "data",
+                    type: "array",
+                    items: new OA\Items(
+                        properties: [
+                            new OA\Property(
+                                property: "notice",
+                                ref: new Model(type: MongoRideNotice::class)
+                            ),
+                            new OA\Property(
+                                property: "publishedBy",
+                                ref: new Model(type: User::class, groups: ["ride_control"])
+                            ),
+                            new OA\Property(
+                                property: "relatedFor",
+                                ref: new Model(type: Ride::class, groups: ["ride_control"])
+                            ),
+                        ],
+                        type: "object"
+                    )
+                ),
+            ],
+            type: "object"
+        )
     )]
     public function showNotices(Request $request): ?JsonResponse
     {
         $page = max(1, (int)$request->query->get('page', 1));
         $limit = max(1, (int)$request->query->get('limit', 10));
+        $isValidated = $request->query->has('isValidated') ? filter_var($request->query->get('isValidated'), FILTER_VALIDATE_BOOLEAN) : null;
 
         $notices = $this->mongoService->getAwaitingValidationNotices();
 
+        // Filtrage selon le statut
+        if ($isValidated !== null) {
+            $notices = array_filter($notices, function ($notice) use ($isValidated) {
+                if (!method_exists($notice, 'getStatus')) {
+                    return false;
+                }
+                $status = $notice->getStatus();
+                if ($isValidated) {
+                    return $status === 'VALIDATED';
+                } else {
+                    return $status !== 'VALIDATED';
+                }
+            });
+        }
+
         $total = count($notices);
-        $notices = array_values($notices); // Réindexer
+        $notices = array_values($notices);
         $offset = ($page - 1) * $limit;
         $paginatedNotices = array_slice($notices, $offset, $limit);
 
-        $data = $this->serializer->serialize($paginatedNotices, 'json');
+        $result = [];
+        foreach ($paginatedNotices as $notice) {
+            $user = null;
+            $ride = null;
+
+            $publishedBy = method_exists($notice, 'getPublishedBy') ? $notice->getPublishedBy() : null;
+            $relatedFor = method_exists($notice, 'getRelatedFor') ? $notice->getRelatedFor() : null;
+
+            if ($publishedBy) {
+                $user = $this->manager->getRepository(User::class)->find($publishedBy);
+            }
+            if ($relatedFor) {
+                $ride = $this->repositoryRide->findOneBy(['id' => $relatedFor]);
+            }
+
+            $result[] = [
+                'notice' => json_decode($this->serializer->serialize($notice, 'json')),
+                'publishedBy' => $user ? json_decode($this->serializer->serialize($user, 'json', ['groups' => ['ride_control']])) : null,
+                'relatedFor' => $ride ? json_decode($this->serializer->serialize($ride, 'json', ['groups' => ['ride_control']])) : null,
+            ];
+        }
 
         return new JsonResponse([
             'page' => $page,
             'limit' => $limit,
             'total' => $total,
-            'data' => json_decode($data)
+            'data' => $result
         ], 200);
     }
 

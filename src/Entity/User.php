@@ -40,7 +40,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $password = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['user_account', 'ride_read', 'ride_search'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search', 'ride_control'])]
     private ?string $pseudo = null;
 
     #[ORM\Column(length: 255, nullable: true)]

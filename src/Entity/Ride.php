@@ -15,7 +15,7 @@ class Ride
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['ride_read', 'ride_search'])]
+    #[Groups(['ride_read', 'ride_search', 'ride_control'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
@@ -27,7 +27,7 @@ class Ride
     private ?string $startingPostCode = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['ride_read', 'ride_search'])]
+    #[Groups(['ride_read', 'ride_search', 'ride_control'])]
     private ?string $startingCity = null;
     
     #[ORM\Column(length: 255)]
@@ -39,11 +39,11 @@ class Ride
     private ?string $arrivalPostCode = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['ride_read', 'ride_search'])]
+    #[Groups(['ride_read', 'ride_search', 'ride_control'])]
     private ?string $arrivalCity = null;
 
     #[ORM\Column]
-    #[Groups(['ride_read', 'ride_search'])]
+    #[Groups(['ride_read', 'ride_search', 'ride_control'])]
     private ?DateTimeImmutable $startingAt = null;
 
     #[ORM\Column]
@@ -72,7 +72,7 @@ class Ride
 
     #[ORM\ManyToOne(inversedBy: 'ridesDriver')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['ride_read', 'ride_search'])]
+    #[Groups(['ride_read', 'ride_search', 'ride_control'])]
     private ?User $driver = null;
 
     #[ORM\ManyToOne(inversedBy: 'ridesVehicle')]
