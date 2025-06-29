@@ -297,6 +297,9 @@ final class EmployeesController extends AbstractController
 
             $publishedBy = method_exists($notice, 'getPublishedBy') ? $notice->getPublishedBy() : null;
             $relatedFor = method_exists($notice, 'getRelatedFor') ? $notice->getRelatedFor() : null;
+            $validateBy = method_exists($notice, 'getValidateBy') ? $notice->getValidateBy() : null;
+            $refusedBy = method_exists($notice, 'getRefusedBy') ? $notice->getRefusedBy() : null;
+            $userValidator = null;
 
             if ($publishedBy) {
                 $user = $this->manager->getRepository(User::class)->find($publishedBy);
@@ -304,10 +307,17 @@ final class EmployeesController extends AbstractController
             if ($relatedFor) {
                 $ride = $this->repositoryRide->findOneBy(['id' => $relatedFor]);
             }
+            if ($validateBy) {
+                $userValidator = $this->manager->getRepository(User::class)->find($validateBy);
+            }
+            if ($refusedBy) {
+                $userValidator = $this->manager->getRepository(User::class)->find($refusedBy);
+            }
 
             $result[] = [
                 'notice' => json_decode($this->serializer->serialize($notice, 'json')),
                 'publishedBy' => $user ? json_decode($this->serializer->serialize($user, 'json', ['groups' => ['ride_control']])) : null,
+                'processedBy' => $user ? json_decode($this->serializer->serialize($userValidator, 'json', ['groups' => ['ride_control']])) : null,
                 'relatedFor' => $ride ? json_decode($this->serializer->serialize($ride, 'json', ['groups' => ['ride_control']])) : null,
             ];
         }
