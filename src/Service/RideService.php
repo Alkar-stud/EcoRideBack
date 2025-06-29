@@ -151,10 +151,21 @@ class RideService
         $nbPassengers = count($ride->getPassenger());
         //Compte des validations
         $nbValidations = count($ride->getValidations());
-        if ($nbValidations === $nbPassengers && $ride->getStatus() !== RideStatus::getBadExpStatus() && $ride->getStatus() != RideStatus::getBadExpStatusProcessing())
+        //Récupération des validations de ce covoiturage pour vérifier qu'elles sont toutes à isClosed==true
+        $allClosed = true;
+        foreach ($ride->getValidations() as $validation) {
+            if (!$validation->isClosed()) {
+                $allClosed = false;
+                break;
+            }
+        }
+        //Si nombre de passager == nombre de validation ET que toutes les validations sont bien isClosed==true(si allIsOk==true isClosed l'est aussi)
+        if ($nbValidations === $nbPassengers && $allClosed)
         {
             //On paie le chauffeur, $nbPassengers * $ride→price – la commission
             $this->ridePayments->driverPayment($ride, $nbPassengers);
+            //On clôture le covoiturage
+            $ride->setStatus(RideStatus::getFinishedStatus());
             $this->manager->persist($ride->getDriver());
             $this->manager->flush();
 
