@@ -207,19 +207,48 @@ final class EmployeesController extends AbstractController
     #[Route('/showNotices', name: 'showNotices', methods: ['GET'])]
     #[OA\Get(
         path:"/api/ecoride/employee/showNotices",
-        summary:"Récupération de la liste des avis à valider"
+        summary:"Récupération de la liste des avis à valider",
+        parameters: [
+            new OA\Parameter(
+                name: "page",
+                description: "Numéro de page (défaut: 1)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre d'éléments par page (défaut: 10)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 10)
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
         description: 'Liste des avis à valider trouvée avec succès'
     )]
-    public function showNotices(): ?JsonResponse
+    public function showNotices(Request $request): ?JsonResponse
     {
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, (int)$request->query->get('limit', 10));
+
         $notices = $this->mongoService->getAwaitingValidationNotices();
 
-        $data = $this->serializer->serialize($notices, 'json');
+        $total = count($notices);
+        $notices = array_values($notices); // Réindexer
+        $offset = ($page - 1) * $limit;
+        $paginatedNotices = array_slice($notices, $offset, $limit);
 
-        return new JsonResponse($data, 200, [], true);
+        $data = $this->serializer->serialize($paginatedNotices, 'json');
+
+        return new JsonResponse([
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'data' => json_decode($data)
+        ], 200);
     }
 
     #[Route('/validateNotice', name: 'validateNotice', methods: ['POST'])]
