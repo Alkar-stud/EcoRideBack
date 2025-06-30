@@ -92,7 +92,7 @@ final class AdminController extends AbstractController
         //Génération du mot de passe envoyé par mail avec demande de le changer à la 1ère connexion
         $passGen = $this->passwordService->passwordGeneration(12);
         $user->setPassword($passwordHasher->hashPassword($user, $passGen));
-        $user->setRoles(['ROLE_EMPOYEE']);
+        $user->setRoles(['ROLE_EMPLOYEE']);
         $user->setIsPassenger(false);
         $user->setCreatedAt(new DateTimeImmutable());
 
@@ -100,7 +100,7 @@ final class AdminController extends AbstractController
         $existingUser = $this->manager->getRepository(User::class)->findOneBy(['email' => $user->getEmail()]);
 
         if ($existingUser) {
-            return new JsonResponse(['message' => 'Ce compte existe déjà'], Response::HTTP_CONFLICT);
+            return new JsonResponse(['error' => true, 'message' => 'Ce compte existe déjà'], Response::HTTP_CONFLICT);
         }
 
         $this->manager->persist($user);
@@ -109,67 +109,243 @@ final class AdminController extends AbstractController
         //envoi du mail au format texte confirmant la création du compte avec le mot de passe en invitant à le changer dès la première connexion
         $this->mailService->sendEmail($user->getEmail(), 'accountEmployeeCreate', ['pseudo' => $user->getPseudo(), 'pass' => $passGen]);
 
-        return new JsonResponse(['message' => 'Compte pour ' . $user->getPseudo() . ' inscrit et mail avec mot de passe envoyé avec succès'], Response::HTTP_CREATED);
+        return new JsonResponse(['success' => true, 'message' => 'Compte pour ' . $user->getPseudo() . ' inscrit et mail avec mot de passe envoyé avec succès'], Response::HTTP_CREATED);
     }
 
-    #[Route('/suspend/{id}', name: 'suspend', methods: ['PUT'])]
-    #[OA\Put(
-        path:"/api/ecoride/admin/suspend/{id}",
-        summary:"Suspension d'un compte"
+
+    #[Route('/listEmployees', name: 'list_employees', methods: ['GET'])]
+    #[OA\Get(
+        path: "/api/ecoride/admin/listEmployees",
+        summary: "Liste paginée de tous les employés",
+        parameters: [
+            new OA\Parameter(
+                name: "page",
+                description: "Numéro de page (défaut : 1)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre d'éléments par page (défaut : 10)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 10)
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
-        description: 'Compte suspendu avec succès'
+        description: "Liste des employés"
+    )]
+    public function listEmployees(Request $request): JsonResponse
+    {
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, (int)$request->query->get('limit', 10));
+        $offset = ($page - 1) * $limit;
+
+        $qb = $this->repositoryUser->createQueryBuilder('u')
+            ->where('u.roles LIKE :role')
+            ->setParameter('role', '%employee%')
+            ->orderBy('u.isActive', 'DESC') // Les actifs d'abord, les inactifs à la fin
+            ->setFirstResult($offset)
+            ->setMaxResults($limit);
+
+        $users = $qb->getQuery()->getResult();
+
+        $total = $this->repositoryUser->createQueryBuilder('u')
+            ->select('COUNT(u.id)')
+            ->where('u.roles LIKE :role')
+            ->setParameter('role', '%employee%')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $data = [];
+        foreach ($users as $user) {
+            $data[] = [
+                'id' => $user->getId(),
+                'pseudo' => $user->getPseudo(),
+                'email' => $user->getEmail(),
+                'photo' => $user->getPhoto(),
+                'grade' => $user->getGrade(),
+                'isActive' => $user->isActive(),
+            ];
+        }
+
+        return new JsonResponse([
+            'success' => true,
+            'page' => $page,
+            'limit' => $limit,
+            'total' => (int)$total,
+            'data' => $data
+        ], Response::HTTP_OK);
+    }
+
+
+    #[Route('/searchUser', name: 'search_user', methods: ['POST'])]
+    #[OA\Post(
+        path: "/api/ecoride/admin/searchUser",
+        summary: "Recherche un utilisateur par email ou pseudo (employé par défaut)",
+        parameters: [
+            new OA\Parameter(
+                name: "searchParameter",
+                description: "Adresse email ou pseudo de l'utilisateur",
+                in: "query",
+                required: true,
+                schema: new OA\Schema(type: "string")
+            ),
+            new OA\Parameter(
+                name: "isEmployee",
+                description: "Filtrer sur les employés (true par défaut)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "boolean", default: true)
+            )
+        ]
     )]
     #[OA\Response(
-        response: 404,
-        description: 'Ce compte n\'existe pas'
-
+        response: 200,
+        description: "Utilisateur trouvé ou non",
+        content: new OA\JsonContent(
+            oneOf: [
+                new OA\Schema( // Succès
+                    properties: [
+                        new OA\Property(property: "success", type: "boolean", example: true),
+                        new OA\Property(property: "data", type: "object", properties: [
+                            new OA\Property(property: "id", type: "integer", example: 42),
+                            new OA\Property(property: "pseudo", type: "string", example: "JeanDupont"),
+                            new OA\Property(property: "email", type: "string", example: "jean.dupont@email.com"),
+                            new OA\Property(property: "isActive", type: "boolean", example: true),
+                        ])
+                    ],
+                    type: "object"
+                ),
+                new OA\Schema( // Erreur
+                    properties: [
+                        new OA\Property(property: "error", type: "boolean", example: true),
+                        new OA\Property(property: "message", type: "string", example: "Aucun utilisateur trouvé")
+                    ],
+                    type: "object"
+                )
+            ]
+        )
     )]
-    public function suspend(int $id): JsonResponse
+    #[OA\Response(
+        response: 400,
+        description: "Paramètre de recherche manquant",
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "error", type: "boolean", example: true),
+                new OA\Property(property: "message", type: "string", example: "Veuillez fournir un email ou un pseudo")
+            ],
+            type: "object"
+        )
+    )]
+    public function searchUser(Request $request): JsonResponse
     {
-        //Pour suspendre un compte, il faut mettre isActive à false
+        $data = $request->toArray();
+        $searchParameter = $data['searchParameter'] ?? $request->query->get('searchParameter');
+        $isEmployee = $data['isEmployee'] ?? $request->query->getBoolean('isEmployee', true);
+
+        if (!$searchParameter) {
+            return new JsonResponse(['error' => true, 'message' => 'Veuillez fournir un email ou un pseudo'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user = $this->repositoryUser->createQueryBuilder('u')
+            ->where('u.pseudo = :search OR u.email = :search')
+            ->setParameter('search', $searchParameter)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$user) {
+            return new JsonResponse(['error' => true, 'message' => 'Aucun utilisateur trouvé'], Response::HTTP_OK);
+        }
+
+        $roles = $user->getRoles();
+
+
+        if ($isEmployee) {
+            // On ne veut que les employés
+            if (!in_array('ROLE_EMPLOYEE', $roles)) {
+                return new JsonResponse(['error' => true, 'message' => 'Aucun employé trouvé'], Response::HTTP_OK);
+            }
+        } else {
+            // On veut tout sauf les employés
+            if (in_array('ROLE_EMPLOYEE', $roles)) {
+                return new JsonResponse(['error' => true, 'message' => 'Aucun utilisateur trouvé'], Response::HTTP_OK);
+            }
+        }
+
+        return new JsonResponse([
+            'success' => true,
+            'data' => [
+                'id' => $user->getId(),
+                'pseudo' => $user->getPseudo(),
+                'email' => $user->getEmail(),
+                'isActive' => $user->isActive(),
+            ]
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/setActive/{id}', name: 'set_active', methods: ['PUT'])]
+    #[OA\Put(
+        path:"/api/ecoride/admin/setActive/{id}",
+        summary:"(Dés)activation d'un compte",
+        parameters: [
+            new OA\Parameter(
+                name: "active",
+                description: "true pour activer, false pour suspendre",
+                in: "query",
+                required: true,
+                schema: new OA\Schema(type: "boolean")
+            )
+        ]
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Statut du compte mis à jour'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Paramètre "active" manquant ou invalide'
+    )]
+    public function setActive(int $id, Request $request): JsonResponse
+    {
+        $active = $request->query->getBoolean('active', false);
+
+        if (!is_bool($active)) {
+            return new JsonResponse(['error' => true, 'message' => 'Paramètre "active" manquant ou invalide'], Response::HTTP_BAD_REQUEST);
+        }
+
         $user = $this->repositoryUser->findOneBy(['id' => $id]);
 
-        $user->setIsActive(false);
+        if (!$user) {
+            return new JsonResponse(['error' => true, 'message' => 'Ce compte n\'existe pas'], Response::HTTP_OK);
+        }
+
+        $user->setIsActive($active);
         $user->setUpdatedAt(new DateTimeImmutable());
         $this->manager->persist($user);
         $this->manager->flush();
 
-        return new JsonResponse(['message' => 'Compte suspendu avec succès'], Response::HTTP_OK);
-    }
+        $message = $active ? 'Compte réactivé avec succès' : 'Compte suspendu avec succès';
 
-    #[Route('/reactivate/{id}', name: 'reactivate', methods: ['PUT'])]
-    #[OA\Put(
-        path:"/api/ecoride/admin/reactivate/{id}",
-        summary:"Réactivation d'un compte"
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'Compte réactivé avec succès'
-    )]
-    #[OA\Response(
-        response: 404,
-        description: 'Ce compte n\'existe pas'
-
-    )]
-    public function reactivate(int $id): JsonResponse
-    {
-        //Pour réactiver un compte, il faut mettre isActive à false
-        $user = $this->repositoryUser->findOneBy(['id' => $id]);
-
-        $user->setIsActive(true);
-        $user->setUpdatedAt(new DateTimeImmutable());
-        $this->manager->persist($user);
-        $this->manager->flush();
-
-        return new JsonResponse(['message' => 'Compte réactivé avec succès'], Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => $message], Response::HTTP_OK);
     }
 
     #[Route('/checkCredits/{limit}', name: 'checkCredits', methods: ['GET'])]
     #[OA\Get(
         path:"/api/ecoride/admin/checkCredits/{limit}",
-        summary:"Affichage des données statistiques."
+        summary:"Affichage des données statistiques.",
+        parameters: [
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre de mois à prendre en compte (ou 'all' pour tout). Par défaut : 12",
+                in: "path",
+                required: false,
+                schema: new OA\Schema(type: "string", default: "12")
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
@@ -224,10 +400,10 @@ final class AdminController extends AbstractController
         $rides['totalGain'] = count($rides['dailyStats']) * $platformCommission->getParameterValue();
 
         if (!$rides) {
-            return new JsonResponse(['message' => 'Aucune donnée trouvée'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => true, 'message' => 'Aucune donnée trouvée'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($rides, Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'data' => $rides], Response::HTTP_OK);
     }
 
 

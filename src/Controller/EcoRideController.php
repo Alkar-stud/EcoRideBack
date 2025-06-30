@@ -82,6 +82,7 @@ final class EcoRideController extends AbstractController{
 
         return new JsonResponse(
             [
+                'success' => true,
                 'id'  => $ecoride->getId(),
                 'libelle'  => $ecoride->getLibelle(),
                 'parameterValue' => $ecoride->getParameterValue(),
@@ -112,13 +113,19 @@ final class EcoRideController extends AbstractController{
                 'json'
             );
 
-            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+            return new JsonResponse(
+                [
+                    'success' => true,
+                    'data' => json_decode($responseData)
+                ],
+                Response::HTTP_OK
+            );
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Aucun paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
-    #[Route('/{id}', name: 'show', methods: 'GET')]
+    #[Route('/{id<\d+>}', name: 'show', methods: 'GET')]
     #[OA\Get(
         path:"/api/ecoride/{id}",
         summary:"Récupérer un paramètre de l'application par l'ID.",
@@ -139,6 +146,7 @@ final class EcoRideController extends AbstractController{
         if ($ecoride) {
             return new JsonResponse(
                 [
+                    'success' => true,
                     'id'  => $ecoride->getId(),
                     'libelle'  => $ecoride->getLibelle(),
                     'parameterValue' => $ecoride->getParameterValue(),
@@ -149,16 +157,30 @@ final class EcoRideController extends AbstractController{
             );
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
+    #[Route('/{libelle}', name: 'showLbl', methods: 'GET')]
+    #[OA\Get(
+        path:"/api/ecoride/{libelle}",
+        summary:"Récupérer un paramètre de l'application par le libelle.",
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Paramètre non trouvé'
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Paramètre trouvé avec succès',
+        content: new Model(type: Ecoride::class)
+    )]
     public function showByLibelle(string $libelle): JsonResponse
     {
-
         $ecoride = $this->repository->findOneBy(['libelle' => $libelle]);
         if ($ecoride) {
             return new JsonResponse(
                 [
+                    'success' => true,
                     'id'  => $ecoride->getId(),
                     'libelle'  => $ecoride->getLibelle(),
                     'parameterValue' => $ecoride->getParameterValue(),
@@ -169,7 +191,7 @@ final class EcoRideController extends AbstractController{
             );
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
 
@@ -223,6 +245,7 @@ final class EcoRideController extends AbstractController{
 
             return new JsonResponse(
                 [
+                    'success' => true,
                     'id'  => $ecoride->getId(),
                     'libelle'  => $ecoride->getLibelle(),
                     'parameterValue' => $ecoride->getParameterValue(),
@@ -233,7 +256,7 @@ final class EcoRideController extends AbstractController{
             );
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
 
@@ -243,7 +266,7 @@ final class EcoRideController extends AbstractController{
         summary:"/!\ Supprimer un paramètre de l'application.",
     )]
     #[OA\Response(
-        response: 204,
+        response: 200,
         description: 'Paramètre supprimé avec succès'
     )]
     #[OA\Response(
@@ -257,10 +280,10 @@ final class EcoRideController extends AbstractController{
             $this->manager->remove($ecoride);
             $this->manager->flush();
 
-            return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+            return new JsonResponse(['success' => true, 'message' => 'Paramètre supprimé avec succès'], Response::HTTP_OK);
         }
 
-        return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
 
     }
 
