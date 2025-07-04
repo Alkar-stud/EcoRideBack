@@ -1,21 +1,51 @@
+# Fichiers d'environnement spécifiques
+.env.local
+.env.dev
+.env.test.local
+.env.test
 
-###> symfony/framework-bundle ###
-/.env.local
-/.env.local/php
-/.env.dev
-/.env.docker
-/secrets/
-/config/secrets/prod/prod.decrypt.private.php
+# Cache et données temporaires
+/var/
 /public/bundles/
 /public/uploads/photos/*.*
-/var/
-/vendor/
-###< symfony/framework-bundle ###
-/.idea/*
-###> symfony/phpunit-bridge ###
+/var/cache/
+/var/log/
+/var/sessions/
 .phpunit.result.cache
+
+# Dépendances - elles seront installées dans le container
+/vendor/
+/node_modules/
+
+# Fichiers IDE et configuration
+/.idea/
+/.vscode/
+/.git/
+/.github/
+/.gitignore
+/.php-cs-fixer.cache
+/phpstan.neon
+
+# Fichiers Docker qui ne doivent pas être copiés dans l'image
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+compose.override.yaml
+.dockerignore
+/docker/
+.github
+.gitignore
+
+
+# Fichiers de secrets qui doivent rester en local
+/secrets/
+**/*.txt
+**/*.key
+**/*.pem
+
+# Documentation et tests
+/tests/
 /phpunit.xml
-###< symfony/phpunit-bridge ###
-
-
-/*.txt
+/phpunit.xml.dist
+README.md
+CHANGELOG.md
