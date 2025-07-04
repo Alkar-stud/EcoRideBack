@@ -540,6 +540,10 @@ class SecurityController extends AbstractController
         return $resizedImage;
     }
 
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
     #[Route('/account', name: 'account_delete', methods: 'DELETE')]
     #[OA\Delete(
         path:"/api/account",
@@ -564,6 +568,18 @@ class SecurityController extends AbstractController
                     @unlink($oldPhotoPath);
                 }
             }
+
+            //Récupération de l'argent du compte du user qui n'a pas été retiré pour le mettre dans ecoRideCreditsTemp de MongoDB
+            $lostCredits = $user->getCredits();
+            //Ajout à ecoRideCreditsTemp de MongoDB
+
+            $reason = 'Crédits compte supprimé (' . $user->getEmail() . ')';
+
+            // Enregistrer le mouvement
+            $this->mongoService->addMovementCreditsForRegistration($lostCredits, $user, $reason);
+
+            // Mettre à jour le total des crédits indépendamment
+            $this->mongoService->updateCreditsEcoRide($lostCredits);
 
             // On supprime l'utilisateur
             $this->manager->remove($user);
