@@ -13,6 +13,6 @@ Ce projet est réalisé dans le cadre de l'ECF de Studi.
 4. Puis `docker compose exec app php bin/console doctrine:migrations:migrate --no-interaction`
 
 
-Une fois l'installation terminée, le backend est disponible ici http://localhost:8080.
+Une fois l'installation terminée, le backend est disponible ici https://localhost:8000.
 Vous avez accès à un gestionnaire de MySQL à l'adresse http://localhost:8081,  
 et un accès à un gestionnaire MongoDB à l'adresse http://localhost:8082. 

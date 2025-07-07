@@ -59,8 +59,8 @@ RUN chown -R www-data:www-data /var/www/html
 USER www-data
 
 # Installe les dépendances Symfony
-RUN composer install --no-scripts --optimize-autoloader && \
-    composer dump-env prod
+RUN composer install --no-scripts --optimize-autoloader
+#RUN composer dump-env prod
 #RUN composer require symfony/apache-pack
 RUN composer config extra.symfony.allow-contrib true --no-interaction && \
     composer require symfony/apache-pack --no-interaction
