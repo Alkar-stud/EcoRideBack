@@ -4,10 +4,12 @@ namespace App\Controller;
 
 use App\Entity\Preferences;
 use App\Entity\User;
-use App\Service\MailService;
 use App\Repository\EcorideRepository;
+use App\Service\MailService;
+use App\Service\VehicleService;
 use App\Service\MongoService;
 use DateTimeImmutable;
+use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use GdImage;
@@ -32,6 +34,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
+use Throwable;
 
 
 #[Route('/api', name: 'app_api_')]
@@ -46,6 +49,7 @@ class SecurityController extends AbstractController
         private readonly MailService                 $mailService,
         private readonly EcorideRepository           $ecorideRepository,
         private readonly MongoService                $mongoService,
+        private readonly VehicleService              $vehicleService,
     )
     {
     }
@@ -148,7 +152,11 @@ class SecurityController extends AbstractController
         $this->manager->flush();
 
         //Mise à jour des mouvements de crédits sur EcoRide
-        $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
+        try {
+            $this->mongoService->addMovementCreditsForRegistration($ecorideWelcomeCredit->getParameterValue(), $user, 'registrationUser');
+        } catch (MongoDBException|Throwable $e) {
+
+        }
 
         //On envoie le mail type 'accountUserCreate' à l'utilisateur
         $this->mailService->sendEmail($user->getEmail(), 'accountUserCreate', ['pseudo' => $user->getPseudo()]);
@@ -235,6 +243,11 @@ class SecurityController extends AbstractController
         $this->denyAccessUnlessGranted('ROLE_USER');
         if (null === $user) {
             return new JsonResponse(['error' => true, 'message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
+        foreach ($user->getUserVehicles() as $vehicle) {
+            $this->vehicleService->convertEnergyCodeToValue($vehicle);
         }
 
         $responseData = $this->serializer->serialize(
@@ -379,8 +392,18 @@ class SecurityController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Image envoyé avec succès',
-        content: new Model(type: User::class, groups: ['user_read'])
+        description: 'Image envoyée avec succès',
+        content: new MediaType(
+            mediaType: 'application/json',
+            schema: new Schema(
+                properties: [
+                    new Property(property: 'success', type: 'boolean', example: true),
+                    new Property(property: 'message', type: 'string', example: 'Message de succès'),
+                    new Property(property: 'fileName', type: 'string', example: 'abcdef1234567890.jpg')
+                ],
+                type: 'object'
+            )
+        )
     )]
     #[OA\Response(
         response: 400,
@@ -456,9 +479,13 @@ class SecurityController extends AbstractController
                 // On met à jour l'utilisateur avec le nouveau nom de fichier
                 $user->setPhoto($newFilename);
                 $this->manager->flush();
-                return new JsonResponse(['success' => true, 'message' => 'Photo redimensionnée et uploadée avec succès'], Response::HTTP_OK);
+                return new JsonResponse([
+                    'success' => true,
+                    'message' => 'Photo redimensionnée et uploadée avec succès',
+                    'fileName' => $newFilename
+                ], Response::HTTP_OK);
             } catch (Exception $e) {
-                return new JsonResponse(['error' => true, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['success' => false, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
         }
 
@@ -470,8 +497,11 @@ class SecurityController extends AbstractController
         } catch (FileException $e) {
             return new JsonResponse(['message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
-
-        return new JsonResponse(['message' => 'Photo uploadée avec succès'], Response::HTTP_OK);
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Photo uploadée avec succès',
+            'fileName' => $newFilename
+        ], Response::HTTP_OK);
     }
 
     private function resizeAvatar(mixed $photoFile): GdImage
@@ -510,6 +540,10 @@ class SecurityController extends AbstractController
         return $resizedImage;
     }
 
+    /**
+     * @throws MongoDBException
+     * @throws Throwable
+     */
     #[Route('/account', name: 'account_delete', methods: 'DELETE')]
     #[OA\Delete(
         path:"/api/account",
@@ -534,6 +568,18 @@ class SecurityController extends AbstractController
                     @unlink($oldPhotoPath);
                 }
             }
+
+            //Récupération de l'argent du compte du user qui n'a pas été retiré pour le mettre dans ecoRideCreditsTemp de MongoDB
+            $lostCredits = $user->getCredits();
+            //Ajout à ecoRideCreditsTemp de MongoDB
+
+            $reason = 'Crédits compte supprimé (' . $user->getEmail() . ')';
+
+            // Enregistrer le mouvement
+            $this->mongoService->addMovementCreditsForRegistration($lostCredits, $user, $reason);
+
+            // Mettre à jour le total des crédits indépendamment
+            $this->mongoService->updateCreditsEcoRide($lostCredits);
 
             // On supprime l'utilisateur
             $this->manager->remove($user);

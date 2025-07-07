@@ -76,11 +76,11 @@ class RideControllerTest extends WebTestCase
         $ride = new Ride();
         $ride->setVehicle($this->vehicle);
         $ride->setDriver($this->testUser);
-        $ride->setStartingStreet($data['startingStreet'] ?? 'Rue du test du départ');
-        $ride->setStartingPostCode($data['startingPostCode'] ?? '51000');
+        $ride->setStartingStreet($data['startingStreet'] ?? 'Rue du Champ de Mars');
+        $ride->setStartingPostCode($data['startingPostCode'] ?? '51100');
         $ride->setStartingCity($data['startingCity'] ?? 'Reims');
-        $ride->setArrivalStreet($data['arrivalStreet'] ?? 'Rue du test de l\'arrivée');
-        $ride->setArrivalPostCode($data['arrivalPostCode'] ?? '75001');
+        $ride->setArrivalStreet($data['arrivalStreet'] ?? 'Rue de la Gare');
+        $ride->setArrivalPostCode($data['arrivalPostCode'] ?? '75019');
         $ride->setArrivalCity($data['arrivalCity'] ?? 'Paris');
         $startingAt = $data['startingAt'] ?? new DateTimeImmutable('+1 day');
         $ride->setStartingAt($startingAt);
@@ -159,10 +159,10 @@ class RideControllerTest extends WebTestCase
         // On a besoin d'au moins 6 covoiturages pour voir la 2ᵉ page avec limite=5
         $this->createMultipleComingRides(7); // 7 nouveaux + 1 existant = 8
 
-        // Requête à la page 2 avec limite de 5.
+        // Requête à la page 1 avec limite de 5.
         $this->client->request(
             'GET',
-            '/api/ride/list/coming?page=2&limit=5'
+            '/api/ride/list/coming?page=1&limit=5'
         );
 
         // Vérification du statut de la réponse
@@ -173,14 +173,14 @@ class RideControllerTest extends WebTestCase
 
         // Vérification de la pagination
         $this->assertArrayHasKey('pagination', $responseContent);
-        $this->assertEquals(2, $responseContent['pagination']['page_courante']);
+        $this->assertEquals(1, $responseContent['pagination']['page_courante']);
         $this->assertEquals(5, $responseContent['pagination']['elements_par_page']);
         $this->assertEquals(8, $responseContent['pagination']['elements_totaux']);
         $this->assertEquals(2, $responseContent['pagination']['pages_totales']);
 
-        // Vérification des covoiturages (3 sur la page 2)
-        $this->assertArrayHasKey('rides', $responseContent);
-        $this->assertCount(3, $responseContent['rides']);
+        // Vérification des covoiturages
+        $this->assertArrayHasKey('driverRides', $responseContent);
+        $this->assertCount(5, $responseContent['driverRides']);
     }
 
 

@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Enum\EnergyEnum;
+use App\Service\VehicleService;
 use DateTime;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Repository\VehicleRepository;
@@ -36,6 +37,7 @@ final class VehicleController extends AbstractController
         private readonly EntityManagerInterface $manager,
         private readonly VehicleRepository      $repository,
         private readonly SerializerInterface    $serializer,
+        private readonly VehicleService         $vehicleService,
     )
     {
     }
@@ -159,8 +161,8 @@ final class VehicleController extends AbstractController
 
     #[Route('/list', name: 'showAll', methods: 'GET')]
     #[OA\Get(
-        path:"/api/vehicle/list",
-        summary:"Récupérer tous les véhicules du User.",
+        path: "/api/vehicle/list",
+        summary: "Récupérer tous les véhicules du User.",
     )]
     #[OA\Response(
         response: 200,
@@ -177,7 +179,7 @@ final class VehicleController extends AbstractController
 
         // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
         foreach ($vehicles as $vehicle) {
-            $this->convertEnergyCodeToValue($vehicle);
+            $this->vehicleService->convertEnergyCodeToValue($vehicle);
         }
 
         return $this->json($vehicles, Response::HTTP_OK, [], ['groups' => 'user_account']);
@@ -185,8 +187,8 @@ final class VehicleController extends AbstractController
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
     #[OA\Get(
-        path:"/api/vehicle/{id}",
-        summary:"Récupérer un véhicule du User avec son ID.",
+        path: "/api/vehicle/{id}",
+        summary: "Récupérer un véhicule du User avec son ID.",
     )]
     #[OA\Response(
         response: 200,
@@ -204,7 +206,7 @@ final class VehicleController extends AbstractController
         if ($vehicles) {
             // Convertir les codes d'énergie en valeurs descriptives pour chaque véhicule
             foreach ($vehicles as $vehicle) {
-                $this->convertEnergyCodeToValue($vehicle);
+                $this->vehicleService->convertEnergyCodeToValue($vehicle);
             }
 
             $responseData = $this->serializer->serialize(
@@ -224,12 +226,12 @@ final class VehicleController extends AbstractController
      */
     #[Route('/{id}', name: 'edit', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/vehicle/{id}",
-        summary:"Modification d'un véhicule du User",
-        requestBody :new RequestBody(
+        path: "/api/vehicle/{id}",
+        summary: "Modification d'un véhicule du User",
+        requestBody: new RequestBody(
             description: "Données du véhicule à modifier.",
             required: true,
-            content: [new MediaType(mediaType:"application/json",
+            content: [new MediaType(mediaType: "application/json",
                 schema: new Schema(properties: [new Property(
                     property: "brand",
                     type: "string",
@@ -320,7 +322,7 @@ final class VehicleController extends AbstractController
         $this->manager->flush();
 
         // Convertir le code d'énergie en valeur descriptive pour l'affichage
-        $this->convertEnergyCodeToValue($vehicle);
+        $this->vehicleService->convertEnergyCodeToValue($vehicle);
 
         $responseData = $this->serializer->serialize($vehicle, 'json', ['groups' => ['user_account']]);
         return new JsonResponse($responseData, Response::HTTP_OK, [], true);
@@ -328,8 +330,8 @@ final class VehicleController extends AbstractController
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     #[OA\Delete(
-        path:"/api/vehicle/{id}",
-        summary:"Supprimer un véhicule du User.",
+        path: "/api/vehicle/{id}",
+        summary: "Supprimer un véhicule du User.",
     )]
     #[OA\Response(
         response: 204,
@@ -342,14 +344,25 @@ final class VehicleController extends AbstractController
     public function delete(#[CurrentUser] ?User $user, int $id): JsonResponse
     {
         $vehicle = $this->repository->findOneBy(['id' => $id, 'owner' => $user->getId()]);
-        if ($vehicle) {
-            $this->manager->remove($vehicle);
-            $this->manager->flush();
 
-            return new JsonResponse([], Response::HTTP_NO_CONTENT);
+        if (!$vehicle) {
+            return new JsonResponse(['error' => true, 'message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_OK);
         }
 
-        return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
+        // Vérifier si le véhicule est utilisé dans un covoiturage actif
+        foreach ($vehicle->getRidesVehicle() as $ride) {
+            if (!in_array($ride->getStatus(), ['CANCELED', 'FINISHED'])) {
+                return new JsonResponse([
+                    'error' => true,
+                    'message' => 'Impossible de supprimer ce véhicule : il est utilisé dans un covoiturage en cours ou à venir.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        $this->manager->remove($vehicle);
+        $this->manager->flush();
+
+        return new JsonResponse(['success' => true], Response::HTTP_OK);
     }
 
     /**
@@ -436,19 +449,4 @@ final class VehicleController extends AbstractController
         return $validEnergies[$energyValue];
     }
 
-    /**
-     * Convertit le code d'énergie en valeur descriptive pour l'affichage
-     */
-    private function convertEnergyCodeToValue(Vehicle $vehicle): void
-    {
-        $energyMapping = [];
-        foreach (EnergyEnum::cases() as $case) {
-            $energyMapping[$case->name] = $case->value;
-        }
-
-        $energyCode = $vehicle->getEnergy();
-        if (isset($energyMapping[$energyCode])) {
-            $vehicle->setEnergy($energyMapping[$energyCode]);
-        }
-    }
 }

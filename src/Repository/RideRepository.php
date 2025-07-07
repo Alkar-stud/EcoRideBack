@@ -25,6 +25,15 @@ class RideRepository extends ServiceEntityRepository
     {
         $qb = $this->createBaseQueryBuilder($criteria);
 
+        // Ajout d'une condition pour filtrer par date minimale
+        if (isset($criteria['startingAt'])) {
+            $qb->andWhere('r.startingAt >= :minDate')
+                ->setParameter('minDate', $criteria['startingAt'] . ' 00:00:00');;
+            $qb->andWhere('r.startingAt <= :maxDate')
+                ->setParameter('maxDate', $criteria['startingAt'] . ' 23:59:59');
+
+        }
+
         $results = $qb->orderBy('r.startingAt', 'ASC')
             ->getQuery()
             ->getResult();

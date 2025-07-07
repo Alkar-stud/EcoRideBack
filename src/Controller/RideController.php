@@ -184,43 +184,97 @@ final class RideController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Covoiturages trouvés avec succès',
-        content: new Model(type: Ride::class, groups: ['ride_read'])
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(
+                    property: "driverRides",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Ride::class, groups: ['ride_read']))
+                ),
+                new OA\Property(
+                    property: "passengerRides",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Ride::class, groups: ['ride_read']))
+                ),
+                new OA\Property(property: "isDriver", type: "boolean"),
+                new OA\Property(property: "isPassenger", type: "boolean"),
+                new OA\Property(
+                    property: "pagination",
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "page_courante", type: "integer"),
+                        new OA\Property(property: "pages_totales", type: "integer"),
+                        new OA\Property(property: "elements_totaux", type: "integer"),
+                        new OA\Property(property: "elements_par_page", type: "integer"),
+                    ]
+                ),
+            ],
+            type: "object"
+        )
     )]
     public function showAll(#[CurrentUser] ?User $user, Request $request, string $state): JsonResponse
     {
-        //Récupération du numéro de page et la limite par page
+        // Récupération du numéro de page et la limite par page
         $page = max(1, $request->query->getInt('page', 1));
         $limit = $request->query->getInt('limit', 10);
 
-        //requête queryBuilder
-        $queryBuilder = $this->repository->createQueryBuilder('r')
-            ->where('r.driver = :driver')
-            ->setParameter('driver', $user)
-            ->orderBy('r.createdAt', 'DESC');
+        // Requête pour les covoiturages en tant que chauffeur
+        $driverQueryBuilder = $this->repository->createQueryBuilder('r')
+            ->where('r.driver = :user')
+            ->setParameter('user', $user)
+            ->orderBy('r.startingAt', 'ASC');
 
-        //Selon le paramètre, on adapte le WHERE
+        // Requête pour les covoiturages en tant que passager
+        $passengerQueryBuilder = $this->repository->createQueryBuilder('r')
+            ->where(':user MEMBER OF r.passenger')
+            ->setParameter('user', $user)
+            ->orderBy('r.startingAt', 'ASC');
+
+        // Appliquer le filtre de statut aux deux requêtes
         if ($state !== 'all') {
-            $queryBuilder
+            $driverQueryBuilder
+                ->andWhere('r.status = :status')
+                ->setParameter('status', $state);
+
+            $passengerQueryBuilder
                 ->andWhere('r.status = :status')
                 ->setParameter('status', $state);
         }
 
-        // Compter le nombre total d'éléments
-        $countQuery = clone $queryBuilder;
-        $totalItems = $countQuery->select('COUNT(r.id)')
-            ->getQuery()
-            ->getSingleScalarResult();
+        // Exécution des requêtes
+        $driverRides = $driverQueryBuilder->getQuery()->getResult();
+        $passengerRides = $passengerQueryBuilder->getQuery()->getResult();
 
-        // Ajouter la pagination
-        $queryBuilder->setFirstResult(($page - 1) * $limit)
-            ->setMaxResults($limit);
+        // Compter le nombre total d'éléments pour chaque catégorie
+        $totalDriverItems = count($driverRides);
+        $totalPassengerItems = count($passengerRides);
+        $totalItems = $totalDriverItems + $totalPassengerItems;
 
-        $rides = $queryBuilder->getQuery()->getResult();
+        // Appliquer la pagination manuellement sur les deux collections combinées
+        $allRides = array_merge($driverRides, $passengerRides);
+        usort($allRides, function($a, $b) {
+            return $a->getStartingAt() <=> $b->getStartingAt();
+        });
 
-        if (count($rides) > 0) {
+        // Extraire seulement les éléments pour la page actuelle
+        $paginatedRides = array_slice($allRides, ($page - 1) * $limit, $limit);
+
+        // Séparer à nouveau les résultats paginés
+        $paginatedDriverRides = array_filter($paginatedRides, function($ride) use ($user) {
+            return $ride->getDriver()->getId() === $user->getId();
+        });
+
+        $paginatedPassengerRides = array_filter($paginatedRides, function($ride) use ($user) {
+            return $ride->getPassenger()->contains($user);
+        });
+
+        if (!empty($paginatedRides)) {
             $responseData = $this->serializer->serialize(
                 [
-                    'rides' => $rides,
+                    'driverRides' => array_values($paginatedDriverRides),
+                    'passengerRides' => array_values($paginatedPassengerRides),
+                    'isDriver' => $user->isDriver(),
+                    'isPassenger' => $user->isPassenger(),
                     'pagination' => [
                         'page_courante' => $page,
                         'pages_totales' => ceil($totalItems / $limit),
@@ -235,7 +289,11 @@ final class RideController extends AbstractController
             return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
-        return new JsonResponse(['message' => 'Il n\'y a pas de covoiturage dans cet état.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse([
+            'message' => 'Il n\'y a pas de covoiturage dans cet état.',
+            'driverRides' => [],
+            'passengerRides' => []
+            ], Response::HTTP_OK);
     }
 
     #[Route('/show/{id}', name: 'show', methods: 'GET')]
@@ -259,6 +317,7 @@ final class RideController extends AbstractController
         if (!$ride) {
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
+
 
         if ($user) {
             $responseData = $this->serializer->serialize(
@@ -302,6 +361,16 @@ final class RideController extends AbstractController
                         property: "vehicle",
                         type: "integer",
                         example: 3
+                    ),
+                    new Property(
+                        property: "startingAt",
+                        type: "datetime",
+                        example: "2025-07-01 10:00:00"
+                    ),
+                    new Property(
+                        property: "arrivalAt",
+                        type: "datetime",
+                        example: "2025-07-01 12:00:00"
                     ),
                 ], type: "object"))]
         ),
@@ -356,10 +425,22 @@ final class RideController extends AbstractController
             if ($ride->{'get' . ucfirst($key)}() === $value) {
                 unset($dataRequestValidated[$key]);
             }
-            //Dans le cas où $ride->{'get' . ucfirst($key)}() est un objet entité
-            if (is_object($ride->{'get' . ucfirst($key)}())) {
-                if ($ride->{'get' . ucfirst($key)}()->getId() === $value) {
-                    unset($dataRequestValidated[$key]);
+            //Dans le cas où $ride->{'get' . ucfirst($key)}() est un objet
+            elseif (is_object($ride->{'get' . ucfirst($key)}())) {
+                $objectValue = $ride->{'get' . ucfirst($key)}();
+
+                // Si c'est un DateTime/DateTimeImmutable, comparer avec format de date
+                if ($objectValue instanceof \DateTimeInterface && is_string($value)) {
+                    $dateFormat = 'Y-m-d H:i:s';
+                    if ($objectValue->format($dateFormat) === (new DateTimeImmutable($value))->format($dateFormat)) {
+                        unset($dataRequestValidated[$key]);
+                    }
+                }
+                // Si c'est une entité avec getId()
+                elseif (method_exists($objectValue, 'getId')) {
+                    if ($objectValue->getId() === $value) {
+                        unset($dataRequestValidated[$key]);
+                    }
                 }
             }
         }
@@ -374,16 +455,57 @@ final class RideController extends AbstractController
         $passengerCount = $passengers->count();
         $notifyPassengersAboutRideUpdate = false;
 
+        // Mettre à jour les dates si elles sont modifiées
+        if (isset($dataRequestValidated['startingAt'])) {
+            // Si c'est une chaîne, la convertir en DateTimeImmutable
+            if (is_string($dataRequestValidated['startingAt'])) {
+                try {
+                    $startingAt = new DateTimeImmutable($dataRequestValidated['startingAt']);
+                    $ride->setStartingAt($startingAt);
+                    if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+                } catch (Exception $e) {
+                    return new JsonResponse(['message' => "La date de départ n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                }
+            } else {
+                // Si c'est déjà un objet DateTimeImmutable
+                $ride->setStartingAt($dataRequestValidated['startingAt']);
+                if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+            }
+        }
+
+        if (isset($dataRequestValidated['arrivalAt'])) {
+            // Si c'est une chaîne, la convertir en DateTimeImmutable
+            if (is_string($dataRequestValidated['arrivalAt'])) {
+                try {
+                    $arrivalAt = new DateTimeImmutable($dataRequestValidated['arrivalAt']);
+                    $ride->setArrivalAt($arrivalAt);
+                    if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+                } catch (Exception $e) {
+                    return new JsonResponse(['message' => "La date d'arrivée n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                }
+            } else {
+                // Si c'est déjà un objet DateTimeImmutable
+                $ride->setArrivalAt($dataRequestValidated['arrivalAt']);
+                if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
+            }
+        }
+
         //Si le véhicule est à changer, on vérifie qu'il existe et qu'il appartient au user
         if (isset($dataRequestValidated['vehicle'])) {
-            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy(['id' => $dataRequestValidated['vehicle'], 'owner' => $user->getId()]);
-            if (!$vehicle)
-            {
+            $vehicle = $this->manager->getRepository(Vehicle::class)->findOneBy([
+                'id' => $dataRequestValidated['vehicle'],
+                'owner' => $user->getId()
+            ]);
+            if (!$vehicle) {
                 return new JsonResponse(["message" => "Le véhicule n'existe pas ou n'appartient pas à l'utilisateur"], Response::HTTP_BAD_REQUEST);
             }
-            $ride->setVehicle($vehicle);
-            //S'il y a des passagers, on les notifiera une fois flush
-            if ($passengerCount > 0 ) { $notifyPassengersAboutRideUpdate = true; }
+            // Vérifier si le véhicule a réellement changé
+            if ($ride->getVehicle()->getId() !== $vehicle->getId()) {
+                $ride->setVehicle($vehicle);
+                if ($passengerCount > 0) {
+                    $notifyPassengersAboutRideUpdate = true;
+                }
+            }
         }
 
         // Vérification du nombre de places

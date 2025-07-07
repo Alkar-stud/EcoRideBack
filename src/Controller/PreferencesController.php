@@ -100,6 +100,7 @@ final class PreferencesController extends AbstractController
             return new JsonResponse($result, Response::HTTP_NOT_FOUND);
         }
 
+        $result = array_merge(['success' => true], $result);
         return new JsonResponse($result, Response::HTTP_OK);
     }
 
@@ -128,6 +129,6 @@ final class PreferencesController extends AbstractController
             return new JsonResponse($result, $result['status']);
         }
 
-        return new JsonResponse([], Response::HTTP_NO_CONTENT);
+        return new JsonResponse(['success' => true], Response::HTTP_OK);
     }
 }

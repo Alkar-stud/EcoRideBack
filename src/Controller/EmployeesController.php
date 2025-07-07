@@ -8,6 +8,7 @@ use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
 use App\Service\MongoService;
 use App\Service\RideService;
+use App\Document\MongoRideNotice;
 use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\MongoDBException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -44,7 +45,7 @@ final class EmployeesController extends AbstractController
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
         private readonly RideService            $rideService,
-
+        private readonly NoticesController      $noticesController
     )
     {
     }
@@ -52,22 +53,54 @@ final class EmployeesController extends AbstractController
     #[Route('/showValidations', name: 'showValidations', methods: ['GET'])]
     #[OA\Get(
         path:"/api/ecoride/employee/showValidations",
-        summary:"Récupération de la liste des covoiturages qui se sont mal déroulé"
+        summary:"Récupération de la liste des covoiturages qui se sont mal déroulé",
+        parameters: [
+            new OA\Parameter(
+                name: "isClosed",
+                description: "Filtrer sur isClosed (true ou false)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "boolean", default: false)
+            ),
+            new OA\Parameter(
+                name: "page",
+                description: "Numéro de page (défaut: 1)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre d'éléments par page (défaut: 10)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 10)
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
         description: 'Liste des covoiturages trouvée avec succès',
         content: new Model(type: Ride::class, groups: ['ride_read', 'ride_control'])
     )]
-    public function showValidations(#[CurrentUser] ?User $user): JsonResponse
+    public function showValidations(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
-        $rides = $this->repositoryRide->findBy(['status' => ['BADEXP', 'AWAITINGVALIDATION']]);
+        $isClosed = filter_var($request->query->get('isClosed', false), FILTER_VALIDATE_BOOLEAN);
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, (int)$request->query->get('limit', 10));
+
+        $rides = $this->repositoryRide->createQueryBuilder('r')
+            ->join('r.validations', 'v')
+            ->where('v.isClosed = :closed')
+            ->setParameter('closed', $isClosed)
+            ->orderBy('v.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
         $filteredRides = array_filter($rides, function ($ride) use ($user) {
-            // Exclure si le user est conducteur
             if ($ride->getDriver() && $ride->getDriver()->getId() === $user->getId()) {
                 return false;
             }
-            // Exclure si le user est passager
             foreach ($ride->getPassenger() as $passenger) {
                 if ($passenger->getId() === $user->getId()) {
                     return false;
@@ -75,10 +108,22 @@ final class EmployeesController extends AbstractController
             }
             return true;
         });
-        $data = $this->serializer->serialize($filteredRides, 'json', ['groups' => ['ride_read', 'ride_control']]);
 
-        return new JsonResponse($data, 200, [], true);
+        $total = count($filteredRides);
+        $filteredRides = array_values($filteredRides); // Réindexer
+        $offset = ($page - 1) * $limit;
+        $paginatedRides = array_slice($filteredRides, $offset, $limit);
+
+        $data = $this->serializer->serialize($paginatedRides, 'json', ['groups' => ['ride_read', 'ride_control']]);
+
+        return new JsonResponse([
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'data' => json_decode($data)
+        ], 200);
     }
+
 
     /**
      * @throws Throwable
@@ -156,26 +201,133 @@ final class EmployeesController extends AbstractController
         //Ajout du commentaire de prise en charge dans MongoDB pour historique
         $this->mongoService->addValidationHistory($ride, $validation, $user, $dataRequest['closeContent'], $dataRequest['isClosed']);
 
-        return new JsonResponse(['message' => $returnMessage], Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => $returnMessage], Response::HTTP_OK);
     }
 
 
     #[Route('/showNotices', name: 'showNotices', methods: ['GET'])]
     #[OA\Get(
         path:"/api/ecoride/employee/showNotices",
-        summary:"Récupération de la liste des avis à valider"
+        summary:"Récupération de la liste des avis à valider",
+        parameters: [
+            new OA\Parameter(
+                name: "isValidated",
+                description: "Filtrer sur le statut de validation (true : validé, false : en attente/refusé)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "boolean", default: false)
+            ),
+            new OA\Parameter(
+                name: "page",
+                description: "Numéro de page (défaut: 1)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                description: "Nombre d'éléments par page (défaut: 10)",
+                in: "query",
+                required: false,
+                schema: new OA\Schema(type: "integer", default: 10)
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
-        description: 'Liste des avis à valider trouvée avec succès'
+        description: 'Liste des avis à valider trouvée avec succès',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "page", type: "integer", example: 1),
+                new OA\Property(property: "limit", type: "integer", example: 10),
+                new OA\Property(property: "total", type: "integer", example: 42),
+                new OA\Property(
+                    property: "data",
+                    type: "array",
+                    items: new OA\Items(
+                        properties: [
+                            new OA\Property(
+                                property: "notice",
+                                ref: new Model(type: MongoRideNotice::class)
+                            ),
+                            new OA\Property(
+                                property: "publishedBy",
+                                ref: new Model(type: User::class, groups: ["ride_control"])
+                            ),
+                            new OA\Property(
+                                property: "relatedFor",
+                                ref: new Model(type: Ride::class, groups: ["ride_control"])
+                            ),
+                        ],
+                        type: "object"
+                    )
+                ),
+            ],
+            type: "object"
+        )
     )]
-    public function showNotices(): ?JsonResponse
+    public function showNotices(Request $request): ?JsonResponse
     {
-        $notices = $this->mongoService->getAwaitingValidationNotices();
+        $page = max(1, (int)$request->query->get('page', 1));
+        $limit = max(1, (int)$request->query->get('limit', 10));
+        $isValidated = $request->query->has('isValidated') ? filter_var($request->query->get('isValidated'), FILTER_VALIDATE_BOOLEAN) : null;
 
-        $data = $this->serializer->serialize($notices, 'json');
+        $notices = $this->mongoService->getNoticesProcessed($isValidated);
+        // Filtrage selon le statut
+        if ($isValidated !== null) {
+            $notices = array_filter($notices, function ($notice) use ($isValidated) {
+                $status = $notice->getStatus();
+                if ($isValidated) {
+                    return $status !== 'AWAITINGVALIDATION';
+                } else {
+                    return $status === 'AWAITINGVALIDATION';
+                }
+            });
+        }
 
-        return new JsonResponse($data, 200, [], true);
+        $total = count($notices);
+        $notices = array_values($notices);
+        $offset = ($page - 1) * $limit;
+        $paginatedNotices = array_slice($notices, $offset, $limit);
+
+        $result = [];
+        foreach ($paginatedNotices as $notice) {
+            $user = null;
+            $ride = null;
+
+            $publishedBy = method_exists($notice, 'getPublishedBy') ? $notice->getPublishedBy() : null;
+            $relatedFor = method_exists($notice, 'getRelatedFor') ? $notice->getRelatedFor() : null;
+            $validateBy = method_exists($notice, 'getValidateBy') ? $notice->getValidateBy() : null;
+            $refusedBy = method_exists($notice, 'getRefusedBy') ? $notice->getRefusedBy() : null;
+            $userValidator = null;
+
+            if ($publishedBy) {
+                $user = $this->manager->getRepository(User::class)->find($publishedBy);
+            }
+            if ($relatedFor) {
+                $ride = $this->repositoryRide->findOneBy(['id' => $relatedFor]);
+            }
+            if ($validateBy) {
+                $userValidator = $this->manager->getRepository(User::class)->find($validateBy);
+            }
+            if ($refusedBy) {
+                $userValidator = $this->manager->getRepository(User::class)->find($refusedBy);
+            }
+
+            $result[] = [
+                'notice' => json_decode($this->serializer->serialize($notice, 'json')),
+                'publishedBy' => $user ? json_decode($this->serializer->serialize($user, 'json', ['groups' => ['ride_control']])) : null,
+                'processedBy' => $user ? json_decode($this->serializer->serialize($userValidator, 'json', ['groups' => ['ride_control']])) : null,
+                'relatedFor' => $ride ? json_decode($this->serializer->serialize($ride, 'json', ['groups' => ['ride_control']])) : null,
+            ];
+        }
+
+        return new JsonResponse([
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'data' => $result
+        ], 200);
     }
 
     #[Route('/validateNotice', name: 'validateNotice', methods: ['POST'])]
@@ -195,7 +347,7 @@ final class EmployeesController extends AbstractController
                     new Property(
                         property: "action",
                         type: "string",
-                        example: "VALIDATED"
+                        example: "VALIDATED ou REFUSED"
                     )
                 ], type: "object"))]
         ),
@@ -219,13 +371,16 @@ final class EmployeesController extends AbstractController
 
         // Vérifier que les paramètres requis sont présents
         if (!isset($dataRequest['id']) || !isset($dataRequest['action'])) {
-            return new JsonResponse(['message' => 'Les paramètres id et action sont requis'], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => true, 'message' => 'Les paramètres id et action sont requis'], Response::HTTP_BAD_REQUEST);
         }
 
         // Vérifier que l'action est valide
         if ($dataRequest['action'] !== self::NOTICE_REFUSED && $dataRequest['action'] !== self::NOTICE_VALIDATED) {
             return new JsonResponse(
-                ['message' => 'L\'action doit être soit ' . self::NOTICE_REFUSED . ' soit ' . self::NOTICE_VALIDATED],
+                [
+                    'error' => true,
+                    'message' => 'L\'action doit être soit ' . self::NOTICE_REFUSED . ' soit ' . self::NOTICE_VALIDATED
+                ],
                 Response::HTTP_BAD_REQUEST
             );
         }
@@ -233,7 +388,7 @@ final class EmployeesController extends AbstractController
         // Récupérer l'avis
         $notice = $this->mongoService->findOneNotice($dataRequest['id']);
         if (!$notice) {
-            return new JsonResponse(['message' => 'Avis non trouvé'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => true, 'message' => 'Avis non trouvé'], Response::HTTP_NOT_FOUND);
         }
 
         try {
@@ -241,15 +396,31 @@ final class EmployeesController extends AbstractController
             $result = $this->mongoService->updateNotice(['id' => $dataRequest['id']], $user, $dataRequest['action']);
 
             if (!$result) {
-                return new JsonResponse(['message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['error' => true, 'message' => 'Échec de la mise à jour de l\'avis'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+            // Calculer la note de l'utilisateur si l'avis est validé
+            if ($dataRequest['action'] === self::NOTICE_VALIDATED) {
+                // Récupérer l'ID du ride associé à l'avis
+                $rideId = $notice->getRelatedFor();
+
+                // Récupérer le ride depuis la base de données
+                $ride = $this->repositoryRide->findOneBy(['id' => $rideId]);
+
+                if ($ride && $ride->getDriver()) {
+                    // Récupérer l'ID du conducteur du ride
+                    $driverId = $ride->getDriver()->getId();
+
+                    // Appeler la méthode pour calculer et mettre à jour la note du conducteur
+                    $this->noticesController->calculateUserGrade($driverId);
+                }
             }
 
             $actionFr = $dataRequest['action'] === self::NOTICE_VALIDATED ? 'validé' : 'refusé';
-            return new JsonResponse(['message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
+            return new JsonResponse(['success' => true, 'message' => 'L\'avis a été ' . $actionFr], Response::HTTP_OK);
         } catch (MongoDBException|Throwable $e) {
-            return new JsonResponse(['message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return new JsonResponse(['error' => true, 'message' => 'Erreur lors du traitement : ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
 
 }

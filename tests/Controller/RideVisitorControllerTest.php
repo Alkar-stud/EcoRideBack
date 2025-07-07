@@ -32,12 +32,19 @@ class RideVisitorControllerTest extends WebTestCase
 
     public function testAddAndRemovePassenger(): void
     {
-        $this->client->loginUser($this->testUser);
-        $apiToken = $this->generateApiToken($this->testUser);
+        // Création d'un conducteur et d'un passager distincts
+        $driver = $this->createUser('driver-' . uniqid() . '@example.com');
+        $passenger = $this->createUser('passenger-' . uniqid() . '@example.com');
+        $vehicle = $this->createVehicle($driver);
+        $ride = $this->createRide($vehicle, $driver);
+
+        // Connexion en tant que passager
+        $this->client->loginUser($passenger);
+        $apiToken = $this->generateApiToken($passenger);
         $headers = ['HTTP_X-AUTH-TOKEN' => $apiToken];
 
-        $this->updateRidePassenger($this->ride->getId(), '/addUser', 'ajouté', $headers);
-        $this->updateRidePassenger($this->ride->getId(), '/removeUser', 'retiré', $headers);
+        $this->updateRidePassenger($ride->getId(), '/addUser', 'ajouté', $headers);
+        $this->updateRidePassenger($ride->getId(), '/removeUser', 'retiré', $headers);
     }
 
     public function testStartRideWithPassenger(): void

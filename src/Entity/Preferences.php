@@ -17,11 +17,11 @@ class Preferences
     private ?int $id = null;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['user_account', 'ride_search'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $libelle = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Groups(['user_account', 'ride_search'])]
+    #[Groups(['user_account', 'ride_read', 'ride_search'])]
     private ?string $description = null;
 
     #[ORM\ManyToOne(inversedBy: 'userPreferences')]

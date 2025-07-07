@@ -111,7 +111,7 @@ class MongoRideNotice
 
     public function getValidateBy(): ?int
     {
-        return $this->validateBy;
+        return $this->validateBy ?? null;
     }
 
     public function setValidateBy(?int $validateBy): self
@@ -122,7 +122,7 @@ class MongoRideNotice
 
     public function getRefusedBy(): ?int
     {
-        return $this->refusedBy;
+        return $this->refusedBy ?? null;
     }
 
     public function setRefusedBy(?int $refusedBy): self

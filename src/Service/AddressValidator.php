@@ -25,11 +25,28 @@ class AddressValidator
      * @throws DecodingExceptionInterface
      * @throws ClientExceptionInterface
      */
-    public function validateAndDecomposeAddress(string $address): array
+    public function validateAndDecomposeAddress($address): array
     {
+        // Si $address est un tableau, le convertir en chaîne formatée pour la recherche
+        if (is_array($address)) {
+            // Format attendu : "rue, code postal ville"
+            $addressString = '';
+            if (!empty($address['street'])) {
+                $addressString .= $address['street'];
+            }
+            if (!empty($address['postcode'])) {
+                $addressString .= (empty($addressString) ? '' : ', ') . $address['postcode'];
+            }
+            if (!empty($address['city'])) {
+                $addressString .= (empty($addressString) ? '' : ' ') . $address['city'];
+            }
+        } else {
+            $addressString = $address;
+        }
+
         $response = $this->httpClient->request('GET', 'https://api-adresse.data.gouv.fr/search/', [
             'query' => [
-                'q' => $address,
+                'q' => $addressString,
                 'limit' => 1
             ]
         ]);
@@ -55,7 +72,7 @@ class AddressValidator
             $city = $properties['city'] ?? '';
 
             // Vérifier que les données retournées correspondent aux données d'entrée
-            if (empty($street) || empty($city) || !str_contains(strtolower($address), strtolower($city))) {
+            if (empty($street) || empty($city) || !str_contains(strtolower($addressString), strtolower($city))) {
                 /*
                  * Si les données retournées ne correspondent pas aux données d\'entrée, c'est que l'adresse n'a pas été trouvée
                  */
