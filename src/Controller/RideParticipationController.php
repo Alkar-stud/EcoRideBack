@@ -306,8 +306,8 @@ final class RideParticipationController extends AbstractController
 
         // Traitement de l'avis
         $notice = $this->serializer->decode($request->getContent(), 'json');
-        if ($notice['grade'] < 0 || $notice['grade'] > 5) {
-            return $this->createJsonError('La note doit être entre 0 et 5', Response::HTTP_BAD_REQUEST);
+        if ($notice['grade'] < 0 || $notice['grade'] > 10) {
+            return $this->createJsonError('La note doit être entre 0 et 10', Response::HTTP_BAD_REQUEST);
         }
 
         $this->mongoService->addNotice($notice, $user, $ride);

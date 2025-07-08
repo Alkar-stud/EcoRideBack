@@ -218,7 +218,7 @@ final class VehicleController extends AbstractController
             return new JsonResponse($responseData, Response::HTTP_OK, [], true);
         }
 
-        return new JsonResponse(['message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
+        return new JsonResponse(['error' => true, 'message' => 'Ce véhicule n\'existe pas.'], Response::HTTP_NOT_FOUND);
     }
 
     /**

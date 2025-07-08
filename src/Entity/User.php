@@ -23,14 +23,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
-    #[Groups(['user_account', 'ride_control'])]
+    #[Groups(['user_login', 'user_account', 'ride_control'])]
     private ?string $email = null;
 
     /**
      * @var list<string> The user roles
      */
     #[ORM\Column]
-    #[Groups(['user_account'])]
+    #[Groups(['user_login', 'user_account'])]
     private array $roles = [];
 
     /**
@@ -64,7 +64,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?bool $isPassenger = true;
 
     #[ORM\Column(length: 64)]
-    #[Groups(['user_account'])]
+    #[Groups(['user_login', 'user_account'])]
     private ?string $apiToken;
 
     #[ORM\Column]
