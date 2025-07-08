@@ -510,7 +510,7 @@ class SecurityController extends AbstractController
                     'fileName' => $newFilename
                 ], Response::HTTP_OK);
             } catch (Exception $e) {
-                return new JsonResponse(['success' => false, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['error' => true, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
         }
 
@@ -520,7 +520,7 @@ class SecurityController extends AbstractController
             $user->setPhoto($newFilename);
             $this->manager->flush();
         } catch (FileException $e) {
-            return new JsonResponse(['message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => true, 'message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
         return new JsonResponse([
             'success' => true,
