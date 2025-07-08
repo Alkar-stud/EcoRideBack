@@ -44,8 +44,24 @@ final class PreferencesController extends AbstractController
         response: 201,
         description: 'Préférence ajoutée avec succès'
     )]
+    #[OA\Response(
+        response: 400,
+        description: 'Erreur dans l\'ajout de la préférence.'
+    )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
+        // Récupérer et décoder les données JSON
+        $data = json_decode($request->getContent(), true);
+
+        // Vérifier si le champ libelle est présent et non vide
+        if (!isset($data['libelle']) || empty(trim($data['libelle']))) {
+            return new JsonResponse([
+                'error' => true,
+                'message' => 'Le champ libelle est obligatoire.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Si la validation passe, continuer avec le traitement
         $result = $this->preferencesService->addPreference($user, $request);
 
         return new JsonResponse($result, Response::HTTP_CREATED);
