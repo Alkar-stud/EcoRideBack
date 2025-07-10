@@ -32,6 +32,8 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Serializer\Exception\UnexpectedValueException;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Throwable;
@@ -67,19 +69,22 @@ class SecurityController extends AbstractController
             description: "Données de l'utilisateur à inscrire",
             required: true,
             content: [new MediaType(mediaType:"application/json",
-                schema: new Schema(properties: [new Property(
-                    property: "pseudo",
-                    type: "string",
-                    example: "Pseudo"
-                ),
+                schema: new Schema(properties: [
+                    new Property(
+                        property: "pseudo",
+                        type: "string",
+                        example: "Pseudo"
+                    ),
                     new Property(
                         property: "email",
                         type: "string",
+                        format: "email",
                         example: "adresse@email.com"
                     ),
                     new Property(
                         property: "password",
                         type: "string",
+                        minLength: 10,
                         example: "M0t de passe"
                     )], type: "object"))]
         ),
@@ -98,7 +103,13 @@ class SecurityController extends AbstractController
     )]
     public function register(Request $request, UserPasswordHasherInterface $passwordHasher): JsonResponse
     {
-        $user = $this->serializer->deserialize($request->getContent(), User::class, 'json');
+        try {
+            $user = $this->serializer->deserialize($request->getContent(), User::class, 'json');
+        } catch (NotEncodableValueException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Format JSON invalide'], Response::HTTP_BAD_REQUEST);
+        } catch (UnexpectedValueException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Types de données incorrects'], Response::HTTP_BAD_REQUEST);
+        }
 
         //Vérification que les champs sont tous renseignés
         if (null === $user->getPseudo() || null === $user->getPassword() || null === $user->getEmail()) {
@@ -113,7 +124,7 @@ class SecurityController extends AbstractController
 
         //Validation de la complexité du mot de passe
         if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{10,}$/', $user->getPassword())) {
-            return new JsonResponse(['message' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial.'], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => true, 'message' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial.'], Response::HTTP_BAD_REQUEST);
         }
 
         // Ajout des crédits de bienvenue s'il y en a
@@ -163,7 +174,7 @@ class SecurityController extends AbstractController
 
 
         return new JsonResponse(
-            ['message' => 'Utilisateur inscrit avec succès', 'user' => $user->getUserIdentifier()],
+            ['success' => true, 'message' => 'Utilisateur inscrit avec succès', 'user' => $user->getUserIdentifier()],
             Response::HTTP_CREATED
         );
     }
@@ -208,12 +219,12 @@ class SecurityController extends AbstractController
     public function login(#[CurrentUser] ?User $user): JsonResponse
     {
         if (null === $user) {
-            return new JsonResponse(['message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => true, 'message' => 'Missing credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
         if ($user->isActive() === false)
         {
-            return new JsonResponse(['message' => 'Ce compte est désactivé'], Response::HTTP_FORBIDDEN);
+            return new JsonResponse(['error' => true, 'message' => 'Ce compte est désactivé'], Response::HTTP_FORBIDDEN);
         }
 
         return new JsonResponse([
@@ -256,7 +267,14 @@ class SecurityController extends AbstractController
             ['groups' => ['user_account']]
         );
 
-        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+        // Décoder les données sérialisées pour les intégrer dans la structure de réponse
+        $userData = json_decode($responseData, true);
+
+        // Ajouter success => true à la réponse
+        return new JsonResponse([
+            'success' => true,
+            'data' => $userData
+        ], Response::HTTP_OK);
     }
 
     #[Route('/account/edit', name: 'account_edit', methods: 'PUT')]
@@ -266,11 +284,17 @@ class SecurityController extends AbstractController
         requestBody :new RequestBody(
             description: "Données de l'utilisateur à modifier",
             content: [new MediaType(mediaType:"application/json",
-                schema: new Schema(properties: [new Property(
-                    property: "pseudo",
-                    type: "string",
-                    example: "Nouveau pseudo"
-                ),
+                schema: new Schema(properties: [
+                    new Property(
+                        property: "pseudo",
+                        type: "string",
+                        example: "Nouveau pseudo"
+                    ),
+                    new Property(
+                        property: "password",
+                        type: "string",
+                        example: "Nouveau mot de passe"
+                    ),
                     new Property(
                         property: "photo",
                         type: "string",
@@ -291,8 +315,7 @@ class SecurityController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'User modifié avec succès',
-        content: new Model(type: User::class, groups: ['user_read'])
+        description: 'User modifié avec succès'
     )]
     #[OA\Response(
         response: 400,
@@ -309,7 +332,7 @@ class SecurityController extends AbstractController
     ): JsonResponse
     {
         if (null === $user) {
-            return new JsonResponse(null, Response::HTTP_UNAUTHORIZED);
+            return new JsonResponse(['error' => true, 'message' => 'Utilisateur non trouvé'], Response::HTTP_NOT_FOUND);
         }
 
         $originalEmail = $user->getEmail();
@@ -318,12 +341,19 @@ class SecurityController extends AbstractController
         $originalCredits = $user->getCredits();
         $originalGrade = $user->getGrade();
 
-        $user = $this->serializer->deserialize(
-            $request->getContent(),
-            User::class,
-            'json',
-            [AbstractNormalizer::OBJECT_TO_POPULATE => $user]
-        );
+        try {
+            $user = $this->serializer->deserialize(
+                $request->getContent(),
+                User::class,
+                'json',
+                [AbstractNormalizer::OBJECT_TO_POPULATE => $user]
+            );
+        } catch (NotEncodableValueException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Format JSON invalide'], Response::HTTP_BAD_REQUEST);
+        } catch (UnexpectedValueException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Types de données incorrects'], Response::HTTP_BAD_REQUEST);
+        }
+
         // Empêcher la modification des rôles par le User
         $user->setRoles($originalRoles);
         // Empêcher la modification de isActive par le User
@@ -353,23 +383,18 @@ class SecurityController extends AbstractController
         $user->setUpdatedAt(new DateTimeImmutable());
 
         // Vérifier si l'utilisateur a le rôle ROLE_ADD_CREDIT avant de modifier les crédits
+        /*
+         * Pas encore implémenté !!
+         */
         if (!$this->isGranted('ROLE_ADD_CREDIT')) {
             $user->setCredits($originalCredits);
         }
-        //Vérification de l'intégrité de l'upload de la photo et on lui met comme nom un slug.
-
 
         $user->setUpdatedAt(new DateTimeImmutable());
 
         $this->manager->flush();
 
-        $responseData = $this->serializer->serialize(
-            $user,
-            'json',
-            ['groups' => ['user_account']]
-        );
-
-        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+        return new JsonResponse(['success' => true, 'message' => 'Paramètre(s) modifié(s)'], Response::HTTP_OK);
     }
 
     /**
@@ -485,7 +510,7 @@ class SecurityController extends AbstractController
                     'fileName' => $newFilename
                 ], Response::HTTP_OK);
             } catch (Exception $e) {
-                return new JsonResponse(['success' => false, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                return new JsonResponse(['error' => true, 'message' => 'Erreur lors du redimensionnement de l\'image: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
         }
 
@@ -495,7 +520,7 @@ class SecurityController extends AbstractController
             $user->setPhoto($newFilename);
             $this->manager->flush();
         } catch (FileException $e) {
-            return new JsonResponse(['message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return new JsonResponse(['error' => true, 'message' => 'Erreur lors de l\'upload de la photo: ' . $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
         return new JsonResponse([
             'success' => true,

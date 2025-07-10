@@ -44,11 +44,33 @@ final class PreferencesController extends AbstractController
         response: 201,
         description: 'Préférence ajoutée avec succès'
     )]
+    #[OA\Response(
+        response: 400,
+        description: 'Erreur dans l\'ajout de la préférence.'
+    )]
     public function add(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
+        // Récupérer et décoder les données JSON
+        $data = json_decode($request->getContent(), true);
+
+        // Vérifier si le champ libelle est présent et non vide
+        if (!isset($data['libelle']) || empty(trim($data['libelle']))) {
+            return new JsonResponse([
+                'error' => true,
+                'message' => 'Le champ libelle est obligatoire.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Si la validation passe, continuer avec le traitement
         $result = $this->preferencesService->addPreference($user, $request);
 
-        return new JsonResponse($result, Response::HTTP_CREATED);
+        // Ajouter success => true à la réponse
+        $response = [
+            'success' => true,
+            'data' => $result
+        ];
+
+        return new JsonResponse($response, Response::HTTP_CREATED);
     }
 
     #[Route('/list/', name: 'showAll', methods: 'GET')]
@@ -97,11 +119,18 @@ final class PreferencesController extends AbstractController
         $result = $this->preferencesService->editPreference($user, $id, $request);
 
         if (isset($result['error']) && $result['error']) {
-            return new JsonResponse($result, Response::HTTP_NOT_FOUND);
+            $response = [
+                'error' => true,
+                'message' => $result
+            ];
+            return new JsonResponse($response, Response::HTTP_NOT_FOUND);
         }
 
-        $result = array_merge(['success' => true], $result);
-        return new JsonResponse($result, Response::HTTP_OK);
+        $response = [
+            'success' => true,
+            'data' => $result
+        ];
+        return new JsonResponse($response, Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
