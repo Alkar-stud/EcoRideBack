@@ -64,7 +64,13 @@ final class PreferencesController extends AbstractController
         // Si la validation passe, continuer avec le traitement
         $result = $this->preferencesService->addPreference($user, $request);
 
-        return new JsonResponse($result, Response::HTTP_CREATED);
+        // Ajouter success => true à la réponse
+        $response = [
+            'success' => true,
+            'data' => $result
+        ];
+
+        return new JsonResponse($response, Response::HTTP_CREATED);
     }
 
     #[Route('/list/', name: 'showAll', methods: 'GET')]
@@ -113,11 +119,18 @@ final class PreferencesController extends AbstractController
         $result = $this->preferencesService->editPreference($user, $id, $request);
 
         if (isset($result['error']) && $result['error']) {
-            return new JsonResponse($result, Response::HTTP_NOT_FOUND);
+            $response = [
+                'error' => true,
+                'message' => $result
+            ];
+            return new JsonResponse($response, Response::HTTP_NOT_FOUND);
         }
 
-        $result = array_merge(['success' => true], $result);
-        return new JsonResponse($result, Response::HTTP_OK);
+        $response = [
+            'success' => true,
+            'data' => $result
+        ];
+        return new JsonResponse($response, Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
