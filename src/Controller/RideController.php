@@ -286,13 +286,21 @@ final class RideController extends AbstractController
                 ['groups' => ['ride_read']]
             );
 
-            return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+            $formattedResponse = json_encode([
+                'success' => true,
+                'data' => json_decode($responseData, true)
+            ]);
+
+            return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
         }
 
         return new JsonResponse([
+            'success' => true,
             'message' => 'Il n\'y a pas de covoiturage dans cet état.',
-            'driverRides' => [],
-            'passengerRides' => []
+            'data' => [
+                'driverRides' => [],
+                'passengerRides' => []
+            ]
             ], Response::HTTP_OK);
     }
 
@@ -332,8 +340,16 @@ final class RideController extends AbstractController
                 ['groups' => ['ride_read']]
             );
         }
+        // Décoder les données pour les placer dans la structure souhaitée
+        $rideData = json_decode($responseData, true);
 
-        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
+        // Créer la structure de réponse
+        $formattedResponse = json_encode([
+            'success' => true,
+            'data' => $rideData
+        ]);
+
+        return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
     }
 
     /**

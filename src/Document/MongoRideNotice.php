@@ -17,7 +17,6 @@ class MongoRideNotice
     private ?string $status;
     #[MongoDB\Field(type: "int")]
     private ?int $grade;
-
     #[MongoDB\Field(type: "string")]
     private ?string $title;
 
