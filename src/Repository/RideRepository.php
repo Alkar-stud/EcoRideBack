@@ -25,6 +25,20 @@ class RideRepository extends ServiceEntityRepository
     {
         $qb = $this->createBaseQueryBuilder($criteria);
 
+        // Correction du filtre isEco
+        if (isset($criteria['isEco'])) {
+            $isEco = filter_var($criteria['isEco'], FILTER_VALIDATE_BOOLEAN);
+            if ($isEco) {
+                $qb->leftJoin('r.vehicle', 'v')
+                    ->andWhere('v.energy = :ecoEnergy')
+                    ->setParameter('ecoEnergy', 'ECO');
+            } else {
+                $qb->leftJoin('r.vehicle', 'v')
+                    ->andWhere('v.energy != :ecoEnergy')
+                    ->setParameter('ecoEnergy', 'ECO');
+            }
+        }
+
         // Ajout d'une condition pour filtrer par date minimale
         if (isset($criteria['startingAt'])) {
             $qb->andWhere('r.startingAt >= :minDate')
