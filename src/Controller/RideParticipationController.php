@@ -63,17 +63,17 @@ final class RideParticipationController extends AbstractController
                     new Property(
                         property: "startingAddress",
                         type: "json",
-                        example: "{\"street\": \"nom de la rue\", \"postcode\": \"75000\", \"city\": \"ville\"}"
+                        example: "{\"postcode\": \"75000\", \"city\": \"ville\"}"
                     ),
                     new Property(
                         property: "arrivalAddress",
                         type: "json",
-                        example: "{\"street\": \"nom de la rue\", \"postcode\": \"75000\", \"city\": \"ville\"}"
+                        example: "{\"postcode\": \"75000\", \"city\": \"ville\"}"
                     ),
                     new Property(
                         property: "startingAt",
                         type: "datetime",
-                        example: "2025-07-01 10:00:00"
+                        example: "2025-07-20"
                     ),
                     new Property(
                         property: "maxDuration",
@@ -141,8 +141,9 @@ final class RideParticipationController extends AbstractController
 
         $jsonContent = $this->serializer->serialize($rides, 'json', ['groups' => 'ride_search']);
         $responseData = [
-            'rides' => json_decode($jsonContent, true),
-            'message' => 'ok'
+            'success' => true,
+            'message' => 'ok',
+            'rides' => json_decode($jsonContent, true)
         ];
 
         return new JsonResponse($responseData, Response::HTTP_OK);
@@ -244,7 +245,7 @@ final class RideParticipationController extends AbstractController
         // Traitement du retrait
         $this->processUserRemoval($user, $ride);
 
-        return $this->createJsonResponse('Vous avez été retiré à ce covoiturage', Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => 'Vous avez été retiré à ce covoiturage.'], Response::HTTP_OK);
     }
 
     /**
@@ -312,7 +313,7 @@ final class RideParticipationController extends AbstractController
 
         $this->mongoService->addNotice($notice, $user, $ride);
 
-        return $this->createJsonResponse('Votre avis sera publié une fois validé.', Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => 'Votre avis sera publié une fois validé.'], Response::HTTP_OK);
     }
 
     /**
@@ -418,18 +419,40 @@ final class RideParticipationController extends AbstractController
         $today = (new DateTimeImmutable())->setTime(0, 0, 0);
         $searchDate = new DateTimeImmutable($dataRequest['startingAt']);
 
+        $isEco = isset($dataRequest['isEco']) ? filter_var($dataRequest['isEco'], FILTER_VALIDATE_BOOLEAN) : null;
+
         // Recherche du covoiturage le plus proche avant la date demandée (>= aujourd'hui)
         $rideBefore = $this->repository->findOneClosestBefore($dataRequest, $searchDate, $today);
 
         // Recherche du covoiturage le plus proche après la date demandée
         $rideAfter = $this->repository->findOneClosestAfter($dataRequest, $searchDate);
 
+        if (isset($isEco)) {
+            // Filtrer rideBefore si nécessaire
+            if ($rideBefore) {
+                $vehicle = $rideBefore->getVehicle();
+                $isRideEco = ($vehicle && $vehicle->getEnergy() === 'ECO');
+                if ($isEco !== $isRideEco) {
+                    $rideBefore = null;
+                }
+            }
+
+            // Filtrer rideAfter si nécessaire
+            if ($rideAfter) {
+                $rideAfterObj = is_array($rideAfter) ? $rideAfter['ride'] : $rideAfter;
+                $vehicle = $rideAfterObj->getVehicle();
+                $isRideEco = ($vehicle && $vehicle->getEnergy() === 'ECO');
+                if ($isEco !== $isRideEco) {
+                    $rideAfter = null;
+                }
+            }
+        }
+
         $ridesFound = [];
         // Ajouter seulement si le conducteur n'est pas l'utilisateur courant
         if ($rideBefore && ($user === null || $rideBefore->getDriver()->getId() !== $user->getId())) {
             $ridesFound[] = $rideBefore;
         }
-        // Correction : vérifier si $rideAfter est un tableau ou un objet
         if ($rideAfter) {
             $rideAfterObj = is_array($rideAfter) ? $rideAfter['ride'] : $rideAfter;
             if ($user === null || $rideAfterObj->getDriver()->getId() !== $user->getId()) {
@@ -442,8 +465,9 @@ final class RideParticipationController extends AbstractController
 
             // Convertir en tableau pour ajouter l'information supplémentaire
             $responseData = [
-                'rides' => json_decode($jsonContent, true),
-                'message' => 'Aucun covoiturage trouvé à la date demandée. Voici les trajets les plus proches disponibles.'
+                'success' => true,
+                'message' => 'Aucun covoiturage trouvé à la date demandée. Voici les trajets les plus proches disponibles.',
+                'rides' => json_decode($jsonContent, true)
             ];
 
             return new JsonResponse($responseData, Response::HTTP_OK);
@@ -551,11 +575,4 @@ final class RideParticipationController extends AbstractController
         return new JsonResponse(['error' => true, 'message' => $message], $status);
     }
 
-    /**
-     * Crée une réponse JSON avec un message
-     */
-    private function createJsonResponse(string $message, int $status): JsonResponse
-    {
-        return new JsonResponse(['message' => $message], $status);
-    }
 }

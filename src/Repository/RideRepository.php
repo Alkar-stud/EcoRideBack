@@ -23,7 +23,25 @@ class RideRepository extends ServiceEntityRepository
      */
     public function findBySomeField(array $criteria): array
     {
-        $qb = $this->createBaseQueryBuilder($criteria);
+//        $qb = $this->createBaseQueryBuilder($criteria);
+
+        $qb = $this->createQueryBuilder('r')
+            ->where('r.status = :status')
+            ->setParameter('status', RideStatus::COMING->name);
+
+        // Correction du filtre isEco
+        if (isset($criteria['isEco'])) {
+            $isEco = filter_var($criteria['isEco'], FILTER_VALIDATE_BOOLEAN);
+            if ($isEco) {
+                $qb->leftJoin('r.vehicle', 'v')
+                    ->andWhere('v.energy = :ecoEnergy')
+                    ->setParameter('ecoEnergy', 'ECO');
+            } else {
+                $qb->leftJoin('r.vehicle', 'v')
+                    ->andWhere('v.energy != :ecoEnergy')
+                    ->setParameter('ecoEnergy', 'ECO');
+            }
+        }
 
         // Ajout d'une condition pour filtrer par date minimale
         if (isset($criteria['startingAt'])) {
