@@ -326,7 +326,6 @@ final class RideController extends AbstractController
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
-
         if ($user) {
             $responseData = $this->serializer->serialize(
                 $ride,
