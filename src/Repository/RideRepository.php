@@ -23,11 +23,7 @@ class RideRepository extends ServiceEntityRepository
      */
     public function findBySomeField(array $criteria): array
     {
-//        $qb = $this->createBaseQueryBuilder($criteria);
-
-        $qb = $this->createQueryBuilder('r')
-            ->where('r.status = :status')
-            ->setParameter('status', RideStatus::COMING->name);
+        $qb = $this->createBaseQueryBuilder($criteria);
 
         // Correction du filtre isEco
         if (isset($criteria['isEco'])) {
