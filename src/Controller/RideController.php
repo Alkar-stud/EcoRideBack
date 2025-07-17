@@ -183,9 +183,9 @@ final class RideController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: "state",
+                description: "État du covoiturage",
                 in: "path",
                 required: true,
-                description: "État du covoiturage",
                 schema: new OA\Schema(
                     type: "string",
                     enum: [
@@ -275,6 +275,7 @@ final class RideController extends AbstractController
 
         $responseData = $this->serializer->serialize(
             [
+                'success' => true,
                 'driverRides' => array_values($paginatedDriverRides),
                 'passengerRides' => array_values($paginatedPassengerRides),
                 'isDriver' => $user->isDriver(),
