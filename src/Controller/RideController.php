@@ -119,7 +119,7 @@ final class RideController extends AbstractController
 
         if (isset($validateConsistentData['error'])) {
             return new JsonResponse(
-                ["message" => $validateConsistentData['error']],
+                ["error" => true, "message" => $validateConsistentData['error']],
                 Response::HTTP_BAD_REQUEST
             );
         }
@@ -153,7 +153,7 @@ final class RideController extends AbstractController
         foreach ($requiredFields as $field) {
             if (empty($ride->{'get' . ucfirst($field)}())) {
                 return new JsonResponse(
-                    ["message" => "Le champ '$field' est requis."],
+                    ["error" => true, "message" => "Le champ '$field' est requis."],
                     Response::HTTP_BAD_REQUEST
                 );
             }
@@ -171,15 +171,36 @@ final class RideController extends AbstractController
 
         // Réponse
         return new JsonResponse(
-            ["message" => "Covoiturage ajouté avec succès"],
+            ["success" => true, "message" => "Covoiturage ajouté avec succès"],
             Response::HTTP_CREATED
         );
     }
 
     #[Route('/list/{state}', name: 'showAll', methods: 'GET')]
     #[OA\Get(
-        path:"/api/ride/list/{state}",
-        summary:"Liste les covoiturages selon leur état.",
+        path: "/api/ride/list/{state}",
+        summary: "Liste les covoiturages selon leur état.",
+        parameters: [
+            new OA\Parameter(
+                name: "state",
+                in: "path",
+                required: true,
+                description: "État du covoiturage",
+                schema: new OA\Schema(
+                    type: "string",
+                    enum: [
+                        "COMING",
+                        "PROGRESSING",
+                        "VALIDATIONPROCESSING",
+                        "CANCELED",
+                        "AWAITINGVALIDATION",
+                        "FINISHED",
+                        "BADEXP",
+                        "all"
+                    ]
+                )
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
@@ -200,13 +221,13 @@ final class RideController extends AbstractController
                 new OA\Property(property: "isPassenger", type: "boolean"),
                 new OA\Property(
                     property: "pagination",
-                    type: "object",
                     properties: [
                         new OA\Property(property: "page_courante", type: "integer"),
                         new OA\Property(property: "pages_totales", type: "integer"),
                         new OA\Property(property: "elements_totaux", type: "integer"),
                         new OA\Property(property: "elements_par_page", type: "integer"),
-                    ]
+                    ],
+                    type: "object"
                 ),
             ],
             type: "object"
@@ -245,63 +266,44 @@ final class RideController extends AbstractController
         $driverRides = $driverQueryBuilder->getQuery()->getResult();
         $passengerRides = $passengerQueryBuilder->getQuery()->getResult();
 
-        // Compter le nombre total d'éléments pour chaque catégorie
+        // Pagination séparée
         $totalDriverItems = count($driverRides);
         $totalPassengerItems = count($passengerRides);
-        $totalItems = $totalDriverItems + $totalPassengerItems;
 
-        // Appliquer la pagination manuellement sur les deux collections combinées
-        $allRides = array_merge($driverRides, $passengerRides);
-        usort($allRides, function($a, $b) {
-            return $a->getStartingAt() <=> $b->getStartingAt();
-        });
+        $paginatedDriverRides = array_slice($driverRides, ($page - 1) * $limit, $limit);
+        $paginatedPassengerRides = array_slice($passengerRides, ($page - 1) * $limit, $limit);
 
-        // Extraire seulement les éléments pour la page actuelle
-        $paginatedRides = array_slice($allRides, ($page - 1) * $limit, $limit);
-
-        // Séparer à nouveau les résultats paginés
-        $paginatedDriverRides = array_filter($paginatedRides, function($ride) use ($user) {
-            return $ride->getDriver()->getId() === $user->getId();
-        });
-
-        $paginatedPassengerRides = array_filter($paginatedRides, function($ride) use ($user) {
-            return $ride->getPassenger()->contains($user);
-        });
-
-        if (!empty($paginatedRides)) {
-            $responseData = $this->serializer->serialize(
-                [
-                    'driverRides' => array_values($paginatedDriverRides),
-                    'passengerRides' => array_values($paginatedPassengerRides),
-                    'isDriver' => $user->isDriver(),
-                    'isPassenger' => $user->isPassenger(),
-                    'pagination' => [
+        $responseData = $this->serializer->serialize(
+            [
+                'driverRides' => array_values($paginatedDriverRides),
+                'passengerRides' => array_values($paginatedPassengerRides),
+                'isDriver' => $user->isDriver(),
+                'isPassenger' => $user->isPassenger(),
+                'pagination' => [
+                    'driver' => [
                         'page_courante' => $page,
-                        'pages_totales' => ceil($totalItems / $limit),
-                        'elements_totaux' => $totalItems,
+                        'pages_totales' => max(1, ceil($totalDriverItems / $limit)),
+                        'elements_totaux' => $totalDriverItems,
+                        'elements_par_page' => $limit
+                    ],
+                    'passenger' => [
+                        'page_courante' => $page,
+                        'pages_totales' => max(1, ceil($totalPassengerItems / $limit)),
+                        'elements_totaux' => $totalPassengerItems,
                         'elements_par_page' => $limit
                     ]
-                ],
-                'json',
-                ['groups' => ['ride_read']]
-            );
+                ]
+            ],
+            'json',
+            ['groups' => ['ride_read']]
+        );
 
-            $formattedResponse = json_encode([
-                'success' => true,
-                'data' => json_decode($responseData, true)
-            ]);
-
-            return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
-        }
-
-        return new JsonResponse([
+        $formattedResponse = json_encode([
             'success' => true,
-            'message' => 'Il n\'y a pas de covoiturage dans cet état.',
-            'data' => [
-                'driverRides' => [],
-                'passengerRides' => []
-            ]
-            ], Response::HTTP_OK);
+            'data' => json_decode($responseData, true)
+        ]);
+
+        return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
     }
 
     #[Route('/show/{id}', name: 'show', methods: 'GET')]
@@ -411,7 +413,7 @@ final class RideController extends AbstractController
         $ride = $this->repository->findOneBy(['id' => $id, 'driver' => $user->getId()]);
         // Vérification de l'existence du covoiturage
         if (!$ride) {
-            return new JsonResponse(['message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
         // Vérification du statut du covoiturage pour savoir si celui-ci permet la modification
@@ -419,7 +421,7 @@ final class RideController extends AbstractController
         if (!array_key_exists('update', $possibleActions) ||
             !in_array(strtolower($ride->getStatus()), $possibleActions['update']['initial'])) {
             return new JsonResponse(
-                ['message' => 'Le covoiturage ne peut pas être modifié en l\'état, il ne doit pas être démarré.'],
+                ['error' => true, 'message' => 'Le covoiturage ne peut pas être modifié en l\'état, il ne doit pas être démarré.'],
                 Response::HTTP_FORBIDDEN
             );
         }
@@ -434,7 +436,7 @@ final class RideController extends AbstractController
         //s'il y a des champs non modifiables, on indique les champs en trop et on retourne
         foreach ($dataRequestValidated as $key => $value) {
             if (!in_array($key, $champsModifiables)) {
-                return new JsonResponse(['message' => "Le champ $key n'est pas modifiable"], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, 'message' => "Le champ $key n'est pas modifiable"], Response::HTTP_BAD_REQUEST);
             }
             //On supprime de $dataRequestValidated les champs inchangés pour éviter d'envoyer un mail si aucun changement n'est effectué
             if ($ride->{'get' . ucfirst($key)}() === $value) {
@@ -479,7 +481,7 @@ final class RideController extends AbstractController
                     $ride->setStartingAt($startingAt);
                     if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
                 } catch (Exception $e) {
-                    return new JsonResponse(['message' => "La date de départ n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                    return new JsonResponse(['error' => true, 'message' => "La date de départ n'est pas valide"], Response::HTTP_BAD_REQUEST);
                 }
             } else {
                 // Si c'est déjà un objet DateTimeImmutable
@@ -496,7 +498,7 @@ final class RideController extends AbstractController
                     $ride->setArrivalAt($arrivalAt);
                     if ($passengerCount > 0) { $notifyPassengersAboutRideUpdate = true; }
                 } catch (Exception $e) {
-                    return new JsonResponse(['message' => "La date d'arrivée n'est pas valide"], Response::HTTP_BAD_REQUEST);
+                    return new JsonResponse(['error' => true, 'message' => "La date d'arrivée n'est pas valide"], Response::HTTP_BAD_REQUEST);
                 }
             } else {
                 // Si c'est déjà un objet DateTimeImmutable
@@ -512,7 +514,7 @@ final class RideController extends AbstractController
                 'owner' => $user->getId()
             ]);
             if (!$vehicle) {
-                return new JsonResponse(["message" => "Le véhicule n'existe pas ou n'appartient pas à l'utilisateur"], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, "message" => "Le véhicule n'existe pas ou n'appartient pas à l'utilisateur"], Response::HTTP_BAD_REQUEST);
             }
             // Vérifier si le véhicule a réellement changé
             if ($ride->getVehicle()->getId() !== $vehicle->getId()) {
@@ -527,22 +529,22 @@ final class RideController extends AbstractController
         if (isset($dataRequest['nbPlacesAvailable'])) {
             //Si le nombre de places à mettre à jour est <= 0.
             if ($dataRequest['nbPlacesAvailable'] <= 0) {
-                return new JsonResponse(["message" => "Vous ne pouvez pas mettre 0 place disponible. Annulez ou supprimez le covoiturage."], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, "message" => "Vous ne pouvez pas mettre 0 place disponible. Annulez ou supprimez le covoiturage."], Response::HTTP_BAD_REQUEST);
             }
             //Si on veut mettre plus de place disponible que de place dans la voiture
             if ($dataRequest['nbPlacesAvailable'] > $ride->getVehicle()->getMaxNbPlacesAvailable()) {
-                return new JsonResponse(["message" => "Il n'y a pas assez de place dans la voiture pour accueillir autant de monde."], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, "message" => "Il n'y a pas assez de place dans la voiture pour accueillir autant de monde."], Response::HTTP_BAD_REQUEST);
             }
             //Si on veut mettre moins de place disponible que de passager déjà inscrit
             if ($passengerCount > $dataRequest['nbPlacesAvailable']) {
-                return new JsonResponse(["message" => "Vous ne pouvez pas mettre moins de places que de participants déjà inscrits"], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, "message" => "Vous ne pouvez pas mettre moins de places que de participants déjà inscrits"], Response::HTTP_BAD_REQUEST);
             }
             $ride->setNbPlacesAvailable($dataRequest['nbPlacesAvailable']);
         }
         //S'il y a des passagers, on ne peut pas modifier le tarif
         if (isset($dataRequest['price'])) {
             if ($passengerCount > 0) {
-                return new JsonResponse(["message" => "Le prix ne peut pas être modifié lorsqu'il y a au moins un passager inscrit"], Response::HTTP_BAD_REQUEST);
+                return new JsonResponse(['error' => true, "message" => "Le prix ne peut pas être modifié lorsqu'il y a au moins un passager inscrit"], Response::HTTP_BAD_REQUEST);
             }
             $ride->setPrice($dataRequest['price']);
         }
@@ -558,7 +560,7 @@ final class RideController extends AbstractController
             $this->rideService->notifyPassengersAboutRideUpdate($ride, $passengers);
         }
 
-        return new JsonResponse(['message' => 'Covoiturage modifié avec succès'], Response::HTTP_OK);
+        return new JsonResponse(['success' => true, 'message' => 'Covoiturage modifié avec succès'], Response::HTTP_OK);
     }
 
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
