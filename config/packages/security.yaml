@@ -35,6 +35,7 @@ security:
     access_control:
         - { path: ^/api/registration, roles: PUBLIC_ACCESS }
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/forgot-password, roles: PUBLIC_ACCESS }
         - { path: ^/api/ride/, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/ecoride, roles: PUBLIC_ACCESS } # Doit être désactivé en prod !!

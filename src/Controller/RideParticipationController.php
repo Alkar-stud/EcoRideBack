@@ -6,6 +6,7 @@ use App\Document\MongoRideNotice;
 use App\Entity\Ride;
 use App\Entity\User;
 use App\Enum\RideStatus;
+use App\Repository\EcorideRepository;
 use App\Repository\RideRepository;
 use App\Repository\ValidationRepository;
 use App\Service\MailService;
@@ -44,6 +45,7 @@ final class RideParticipationController extends AbstractController
         private readonly SerializerInterface    $serializer,
         private readonly MongoService           $mongoService,
         private readonly MailService            $mailService,
+        private readonly EcorideRepository      $repositoryEcoRide,
     ) {
     }
 
@@ -324,13 +326,29 @@ final class RideParticipationController extends AbstractController
     #[OA\Put(
         path: "/api/ride/{rideId}/{action}",
         summary: "Changement de statut d'un covoiturage",
+        parameters: [
+            new OA\Parameter(
+                name: "action",
+                description: "Action à effectuer sur le covoiturage",
+                in: "path",
+                required: true,
+                schema: new OA\Schema(
+                    type: "string",
+                    enum: ["start", "stop", "cancel", "finish", "update"]
+                )
+            )
+        ]
     )]
     #[OA\Response(
         response: 200,
-        description: 'Le covoiturage est maintenant en statuts {action}'
+        description: 'Le covoiturage est maintenant modifié en statut {action}'
     )]
     #[OA\Response(
         response: 400,
+        description: 'Action non valide'
+    )]
+    #[OA\Response(
+        response: 404,
         description: 'Covoiturage non trouvé'
     )]
     #[IsGranted('ROLE_USER')]
@@ -384,7 +402,7 @@ final class RideParticipationController extends AbstractController
         }
 
         $startingAt = new DateTimeImmutable($dataRequest['startingAt']);
-        $today = (new DateTimeImmutable())->setTime(0, 0, 0);
+        $today = (new DateTimeImmutable())->setTime(0, 0);
         if ($startingAt < $today) {
             return $this->createJsonError('La date doit être supérieure ou égale à la date du jour.', Response::HTTP_BAD_REQUEST);
         }
@@ -416,7 +434,7 @@ final class RideParticipationController extends AbstractController
      */
     private function findNearestRides(?User $user, array $dataRequest): JsonResponse
     {
-        $today = (new DateTimeImmutable())->setTime(0, 0, 0);
+        $today = (new DateTimeImmutable())->setTime(0, 0);
         $searchDate = new DateTimeImmutable($dataRequest['startingAt']);
 
         $isEco = isset($dataRequest['isEco']) ? filter_var($dataRequest['isEco'], FILTER_VALIDATE_BOOLEAN) : null;
@@ -525,23 +543,59 @@ final class RideParticipationController extends AbstractController
 
             $ride->setActualDepartureAt(new DateTimeImmutable());
         } elseif ($action == 'stop') {
-            $this->notifyPassengersForValidation($ride);
+            $this->notifyPassengers($ride, 'passengerValidation');
             $ride->setActualArrivalAt(new DateTimeImmutable());
+        } elseif ($action == 'cancel') {
+            // Récupérer le prix du covoiturage
+            $ridePrice = $ride->getPrice();
+
+            // Notifier les passagers de l'annulation
+            $this->notifyPassengers($ride, 'cancel');
+
+            // Récupérer l'entité TOTAL_CREDIT_TEMP
+            $totalCreditTemp = $this->repositoryEcoRide->findOneBy(['libelle' => 'TOTAL_CREDIT_TEMP']);
+
+            // Rembourser chaque passager
+            foreach ($ride->getPassenger() as $passenger) {
+                // Ajouter le prix du covoiturage aux crédits du passager
+                $passenger->setCredits($passenger->getCredits() + $ridePrice);
+
+                // Soustraire le montant du remboursement de TOTAL_CREDIT_TEMP
+                if ($totalCreditTemp) {
+                    $totalCreditTemp->setParameterValue($totalCreditTemp->getParameterValue() - $ridePrice);
+                }
+
+                // Enregistrer le mouvement de crédits dans MongoDB
+                $this->mongoService->addMovementCreditsForRides(
+                    $ride,
+                    $passenger,
+                    'withdraw',
+                    'Remboursement suite à annulation du covoiturage ' . $ride->getId(),
+                    $ridePrice
+                );
+            }
+
+            // Persister les changements pour TOTAL_CREDIT_TEMP
+            if ($totalCreditTemp) {
+                $this->manager->persist($totalCreditTemp);
+            }
+
+            $ride->setStatus(RideStatus::CANCELED->name);
         }
 
         return true;
     }
 
     /**
-     * Envoie des notifications aux passagers pour validation
+     * Envoie des notifications aux passagers pour validation ou annulation
      * @throws TransportExceptionInterface
      */
-    private function notifyPassengersForValidation(Ride $ride): void
+    private function notifyPassengers(Ride $ride, $typeNotification): void
     {
         foreach ($ride->getPassenger() as $userPassenger) {
             $this->mailService->sendEmail(
                 $userPassenger->getEmail(),
-                'passengerValidation',
+                $typeNotification,
                 [
                     'pseudoPassenger' => $userPassenger->getPseudo(),
                     'rideDate' => $ride->getStartingAt()->format('d/m/Y'),

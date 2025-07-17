@@ -7,6 +7,13 @@ parameters:
     timezone: '%env(APP_TIMEZONE)%'
     env(MONGODB_URL): ''
     env(MONGODB_DB): ''
+    # Configuration PHPMailer
+    smtp_host: '%env(SMTP_HOST)%'
+    smtp_port: '%env(int:SMTP_PORT)%'
+    smtp_username: '%env(SMTP_USERNAME)%'
+    smtp_password: '%env(SMTP_PASSWORD)%'
+    smtp_sender_email: '%env(SMTP_SENDER_EMAIL)%'
+    smtp_sender_name: '%env(SMTP_SENDER_NAME)%'
 
 services:
     # default configuration for services in *this* file
@@ -22,6 +29,16 @@ services:
         arguments:
             $httpClient: '@http_client'
 
+    App\Service\MailService:
+        arguments:
+            $mailsTypeRepository: '@App\Repository\MailsTypeRepository'
+            $smtpHost: '%smtp_host%'
+            $smtpPort: '%smtp_port%'
+            $smtpUsername: '%smtp_username%'
+            $smtpPassword: '%smtp_password%'
+            $smtpSenderEmail: '%smtp_sender_email%'
+            $smtpSenderName: '%smtp_sender_name%'
+
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
     App\:
@@ -30,6 +47,7 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
+            - '../src/Service/MailService.php'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
