@@ -166,8 +166,17 @@ final class VehicleController extends AbstractController
     )]
     #[OA\Response(
         response: 200,
-        description: 'Véhicule(s) trouvée(s) avec succès',
-        content: new Model(type: Vehicle::class, groups: ['user_account'])
+        description: 'Véhicule(s) trouvé(s) avec succès',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "success", type: "boolean", example: true),
+                new OA\Property(
+                    property: "data",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Vehicle::class, groups: ['user_account']))
+                )
+            ]
+        )
     )]
     #[OA\Response(
         response: 404,
@@ -182,7 +191,16 @@ final class VehicleController extends AbstractController
             $this->vehicleService->convertEnergyCodeToValue($vehicle);
         }
 
-        return $this->json($vehicles, Response::HTTP_OK, [], ['groups' => 'user_account']);
+        $responseData = $this->serializer->serialize(
+            [
+                'success' => true,
+                'data' => $vehicles
+            ],
+            'json',
+            ['groups' => ['user_account']]
+        );
+
+        return new JsonResponse($responseData, Response::HTTP_OK, [], true);
     }
 
     #[Route('/{id}', name: 'show', methods: 'GET')]
@@ -193,7 +211,16 @@ final class VehicleController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Véhicule trouvé avec succès',
-        content: new Model(type: Vehicle::class, groups: ['user_account'])
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "success", type: "boolean", example: true),
+                new OA\Property(
+                    property: "data",
+                    type: "array",
+                    items: new OA\Items(ref: new Model(type: Vehicle::class, groups: ['user_account']))
+                )
+            ]
+        )
     )]
     #[OA\Response(
         response: 404,
@@ -210,7 +237,10 @@ final class VehicleController extends AbstractController
             }
 
             $responseData = $this->serializer->serialize(
-                $vehicles,
+                [
+                    'success' => true,
+                    'data' => $vehicles
+                ],
                 'json',
                 ['groups' => ['user_account']]
             );

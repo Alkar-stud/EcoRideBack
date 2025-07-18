@@ -565,6 +565,128 @@ class SecurityController extends AbstractController
         return $resizedImage;
     }
 
+    #[Route('/forgot-password', name: 'forgot_password', methods: 'POST')]
+    #[OA\Post(
+        path:"/api/forgot-password",
+        summary:"Réinitialiser le mot de passe d'un utilisateur",
+        requestBody :new RequestBody(
+            description: "Email de l'utilisateur",
+            required: true,
+            content: [new MediaType(mediaType:"application/json",
+                schema: new Schema(properties: [new Property(
+                    property: "email",
+                    type: "string",
+                    format: "email",
+                    example: "adresse@email.com"
+                )], type: "object"))]
+        ),
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Mot de passe réinitialisé avec succès'
+    )]
+    #[OA\Response(
+        response: 400,
+        description: 'Format de requête invalide'
+    )]
+    #[OA\Response(
+        response: 404,
+        description: 'Utilisateur non trouvé'
+    )]
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        try {
+            $data = json_decode($request->getContent(), true);
+
+            if (!isset($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                return new JsonResponse(['error' => true, 'message' => 'Email invalide ou manquant'], Response::HTTP_BAD_REQUEST);
+            }
+
+            $email = $data['email'];
+            $user = $this->manager->getRepository(User::class)->findOneBy(['email' => $email]);
+
+            if (!$user) {
+                return new JsonResponse(['error' => true, 'message' => 'Aucun utilisateur trouvé avec cet email'], Response::HTTP_NOT_FOUND);
+            }
+
+            // Génération d'un nouveau mot de passe aléatoire sécurisé
+            $newPassword = $this->generateSecurePassword();
+
+            // Hachage du mot de passe et mise à jour
+            $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+
+            // Génération d'un nouveau token API
+            $user->setApiToken(bin2hex(random_bytes(32)));
+
+            // Mise à jour de la date de modification
+            $user->setUpdatedAt(new DateTimeImmutable());
+
+            // Enregistrement des modifications
+            $this->manager->flush();
+
+            // Envoi du mail avec le nouveau mot de passe
+            $this->mailService->sendEmail(
+                $email,
+                'forgotPassword',
+                [
+                    'pseudo' => $user->getPseudo(),
+                    'newPassword' => $newPassword
+                ]
+            );
+
+            return new JsonResponse(['success' => true, 'message' => 'Un nouveau mot de passe a été envoyé à votre adresse email'], Response::HTTP_OK);
+
+        } catch (NotEncodableValueException $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Format JSON invalide'], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => true, 'message' => 'Une erreur est survenue lors de la réinitialisation du mot de passe'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Génère un mot de passe aléatoire sécurisé
+     * @return string
+     */
+    private function generateSecurePassword(): string
+    {
+        $lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        $uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $numbers = '0123456789';
+        $specialChars = '!@#$%^&*()-_=+[]{};:,.<>?';
+
+        $password = '';
+
+        // Au moins une lettre minuscule
+        $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
+        // Au moins une lettre majuscule
+        $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+        // Au moins un chiffre
+        $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+        // Au moins un caractère spécial
+        $password .= $specialChars[random_int(0, strlen($specialChars) - 1)];
+
+        // Compléter jusqu'à atteindre 10 caractères
+        $allChars = $lowercase . $uppercase . $numbers . $specialChars;
+        while (strlen($password) < 10) {
+            $password .= $allChars[random_int(0, strlen($allChars) - 1)];
+        }
+
+        // Mélanger le mot de passe
+        $passwordArray = str_split($password);
+        shuffle($passwordArray);
+
+        // S'assurer que le premier et le dernier caractère ne sont pas spéciaux
+        $nonSpecialChars = $lowercase . $uppercase . $numbers;
+        if (str_contains($specialChars, $passwordArray[0])) {
+            $passwordArray[0] = $nonSpecialChars[random_int(0, strlen($nonSpecialChars) - 1)];
+        }
+        if (str_contains($specialChars, $passwordArray[count($passwordArray) - 1])) {
+            $passwordArray[count($passwordArray) - 1] = $nonSpecialChars[random_int(0, strlen($nonSpecialChars) - 1)];
+        }
+
+        return implode('', $passwordArray);
+    }
+
     /**
      * @throws MongoDBException
      * @throws Throwable
