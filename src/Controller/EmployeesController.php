@@ -212,7 +212,7 @@ final class EmployeesController extends AbstractController
         parameters: [
             new OA\Parameter(
                 name: "isValidated",
-                description: "Filtrer sur le statut de validation (true : validé, false : en attente/refusé)",
+                description: "Filtrer sur le statut de validation (true : validé, false : en attente/refusé)",
                 in: "query",
                 required: false,
                 schema: new OA\Schema(type: "boolean", default: false)
