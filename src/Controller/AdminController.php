@@ -369,35 +369,95 @@ final class AdminController extends AbstractController
         // Récupération de la commission
         $platformCommission = $this->repositoryEcoRide->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT']);
 
-        $query = $this->manager->createQuery(
-            'SELECT r.startingAt AS rideDate, COUNT(r.id) AS nbRides
-        FROM App\Entity\Ride r
-        WHERE r.startingAt <= :startingAt
-        ' . ($limit != 'all' ? 'AND r.startingAt >= :dateLimit' : '') . '
-        GROUP BY r.startingAt
-        ORDER BY r.startingAt ASC'
-        );
+        $finishedStatus = \App\Enum\RideStatus::getFinishedStatus();
 
-        $query->setParameter('startingAt', date('Y-m-d H:i:s'));
-        // Ajouter le paramètre dateLimit seulement si nécessaire
+        // Récupération des covoiturages terminés selon la période
+        $dql = '
+            SELECT r.arrivalAt
+            FROM App\Entity\Ride r
+            WHERE r.status = :status
+            ' . ($limit != 'all' ? 'AND r.arrivalAt >= :dateLimit' : '') . '
+            ORDER BY r.arrivalAt ASC
+        ';
+
+        $query = $this->manager->createQuery($dql)
+            ->setParameter('status', $finishedStatus);
+
         if ($limit != 'all') {
-            $dateLimit = new DateTime();
+            $dateLimit = new \DateTime();
             $dateLimit->modify('-' . $limit . ' months');
             $query->setParameter('dateLimit', $dateLimit->format('Y-m-d H:i:s'));
         }
 
         $rawResults = $query->getResult();
 
-        $rides = [];
+        // Regroupement par date (sans l'heure)
+        $stats = [];
         foreach ($rawResults as $result) {
-            $date = $result['rideDate']->format('Y-m-d');
+            $date = $result['arrivalAt']->format('Y-m-d');
+            if (!isset($stats[$date])) {
+                $stats[$date] = 0;
+            }
+            $stats[$date]++;
+        }
+
+        // Construction du tableau de réponse
+        $rides['dailyStats'] = [];
+        foreach ($stats as $date => $nbRides) {
             $rides['dailyStats'][] = [
                 'rideDate' => $date,
-                'nbRides' => $result['nbRides'],
-                'dailyGain' => $result['nbRides'] * $platformCommission->getParameterValue()
+                'nbRides' => $nbRides,
+                'dailyGain' => $nbRides * $platformCommission->getParameterValue()
             ];
         }
-        $rides['totalGain'] = count($rides['dailyStats']) * $platformCommission->getParameterValue();
+        $rides['totalGain'] = array_sum(array_column($rides['dailyStats'], 'dailyGain'));
+
+// Récupération du crédit de bienvenue
+        $welcomeCredit = $this->repositoryEcoRide->findOneBy(['libelle' => 'WELCOME_CREDIT']);
+
+// Récupération des dates d'inscription des utilisateurs
+        $dql = '
+    SELECT u.createdAt
+    FROM App\Entity\User u
+    WHERE u.createdAt IS NOT NULL
+    ' . ($limit != 'all' ? 'AND u.createdAt >= :dateLimit' : '') . '
+    ORDER BY u.createdAt ASC
+';
+
+        $query = $this->manager->createQuery($dql);
+
+        if ($limit != 'all') {
+            $dateLimit = new \DateTime();
+            $dateLimit->modify('-' . $limit . ' months');
+            $query->setParameter('dateLimit', $dateLimit->format('Y-m-d H:i:s'));
+        }
+
+        $userResults = $query->getResult();
+
+// Regroupement par date
+        $userStats = [];
+        foreach ($userResults as $result) {
+            $date = $result['createdAt']->format('Y-m-d');
+            if (!isset($userStats[$date])) {
+                $userStats[$date] = 0;
+            }
+            $userStats[$date]++;
+        }
+
+// Construction du tableau de réponse
+        $rides['userStats'] = [];
+        foreach ($userStats as $date => $nbUsers) {
+            $rides['userStats'][] = [
+                'userDate' => $date,
+                'nbUsers' => $nbUsers,
+                'dailyCost' => $nbUsers * $welcomeCredit->getParameterValue()
+            ];
+        }
+        $rides['totalUserCost'] = array_sum(array_column($rides['userStats'], 'dailyCost'));
+
+
+
+
 
         if (!$rides) {
             return new JsonResponse(['error' => true, 'message' => 'Aucune donnée trouvée'], Response::HTTP_NOT_FOUND);

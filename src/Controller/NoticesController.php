@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Routing\Attribute\Route;
 use OpenApi\Attributes as OA;
 use Nelmio\ApiDocBundle\Attribute\Areas;
@@ -22,7 +23,8 @@ final class NoticesController extends AbstractController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly DocumentManager $documentManager
+        private readonly DocumentManager $documentManager,
+        private readonly RequestStack $requestStack
     ) {
     }
 
@@ -125,19 +127,40 @@ final class NoticesController extends AbstractController
         $user = $this->findUserOrRespond($userId);
 
         if ($user === null) {
-            return new JsonResponse(['message' => 'Utilisateur non trouvé'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Utilisateur non trouvé',
+                'data' => null
+            ], Response::HTTP_NOT_FOUND);
         }
+
+        $page = max(1, (int)($this->requestStack?->getCurrentRequest()?->query->get('page', 1)));
+        $limit = max(1, (int)($this->requestStack?->getCurrentRequest()?->query->get('limit', 10)));
 
         $rides = $this->entityManager->getRepository(Ride::class)
             ->findBy(['driver' => $user]);
 
         $noticesData = $this->getNoticesData($rides);
 
+        $total = count($noticesData);
+        $offset = ($page - 1) * $limit;
+        $paginated = array_slice($noticesData, $offset, $limit);
+
         return new JsonResponse([
-            'userId' => $userId,
-            'pseudo' => $user->getPseudo(),
-            'currentGrade' => $user->getGrade(),
-            'ridesNotices' => $noticesData
+            'success' => true,
+            'message' => 'Liste des avis récupérée avec succès',
+            'data' => [
+                'userId' => $userId,
+                'pseudo' => $user->getPseudo(),
+                'currentGrade' => $user->getGrade(),
+                'ridesNotices' => $paginated,
+                'pagination' => [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'total' => $total,
+                    'pages' => (int)ceil($total / $limit)
+                ]
+            ]
         ], Response::HTTP_OK);
     }
 
