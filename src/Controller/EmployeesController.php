@@ -81,7 +81,21 @@ final class EmployeesController extends AbstractController
     #[OA\Response(
         response: 200,
         description: 'Liste des covoiturages trouvée avec succès',
-        content: new Model(type: Ride::class, groups: ['ride_read', 'ride_control'])
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "page", type: "integer", example: 1),
+                new OA\Property(property: "limit", type: "integer", example: 10),
+                new OA\Property(property: "total", type: "integer", example: 42),
+                new OA\Property(
+                    property: "data",
+                    type: "array",
+                    items: new OA\Items(
+                        ref: new Model(type: Ride::class, groups: ["ride_read", "ride_control"])
+                    )
+                ),
+            ],
+            type: "object"
+        )
     )]
     public function showValidations(#[CurrentUser] ?User $user, Request $request): JsonResponse
     {
@@ -89,10 +103,16 @@ final class EmployeesController extends AbstractController
         $page = max(1, (int)$request->query->get('page', 1));
         $limit = max(1, (int)$request->query->get('limit', 10));
 
-        $rides = $this->repositoryRide->createQueryBuilder('r')
+        $qb = $this->repositoryRide->createQueryBuilder('r')
             ->join('r.validations', 'v')
             ->where('v.isClosed = :closed')
-            ->setParameter('closed', $isClosed)
+            ->setParameter('closed', $isClosed);
+
+        if ($isClosed) {
+            $qb->andWhere('v.supportBy IS NOT NULL');
+        }
+
+        $rides = $qb
             ->orderBy('v.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
@@ -110,17 +130,20 @@ final class EmployeesController extends AbstractController
         });
 
         $total = count($filteredRides);
-        $filteredRides = array_values($filteredRides); // Réindexer
+        $filteredRides = array_values($filteredRides);
         $offset = ($page - 1) * $limit;
         $paginatedRides = array_slice($filteredRides, $offset, $limit);
 
-        $data = $this->serializer->serialize($paginatedRides, 'json', ['groups' => ['ride_read', 'ride_control']]);
+        $data = [];
+        foreach ($paginatedRides as $ride) {
+            $data[] = json_decode($this->serializer->serialize($ride, 'json', ['groups' => ['ride_read', 'ride_control']]));
+        }
 
         return new JsonResponse([
             'page' => $page,
             'limit' => $limit,
             'total' => $total,
-            'data' => json_decode($data)
+            'data' => $data
         ], 200);
     }
 
@@ -131,9 +154,9 @@ final class EmployeesController extends AbstractController
      */
     #[Route('/supportValidation/{idValidation}', name: 'supportValidation', methods: ['PUT'])]
     #[OA\Put(
-        path:"/api/ecoride/employee/supportValidation/{idValidation}",
-        summary:"Prise en charge d'un covoiturage en attente de validation",
-        requestBody :new RequestBody(
+        path: "/api/ecoride/employee/supportValidation/{idValidation}",
+        summary: "Prise en charge d'un covoiturage en attente de validation",
+        requestBody: new RequestBody(
             description: "Données pour la prise en charge d'un covoiturage en attente de validation",
             required: true,
             content: [new MediaType(mediaType:"application/json",
@@ -150,10 +173,26 @@ final class EmployeesController extends AbstractController
                     ),
                 ], type: "object"))]
         ),
+        parameters: [
+            new OA\Parameter(
+                name: "idValidation",
+                description: "ID de la validation à traiter",
+                in: "path",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 123)
+            )
+        ],
     )]
     #[OA\Response(
         response: 200,
-        description: 'Covoiturage en cours de prise en charge'
+        description: "Validation prise en charge ou clôturée",
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: "success", type: "boolean", example: true),
+                new OA\Property(property: "message", type: "string", example: "Validation prise en charge.")
+            ],
+            type: "object"
+        )
     )]
     #[OA\Response(
         response: 404,
@@ -161,16 +200,13 @@ final class EmployeesController extends AbstractController
     )]
     public function supportValidation(#[CurrentUser] ?User $user, Request $request, int $idValidation): JsonResponse
     {
-        //Changement du statut du covoiturage en AWAITINGVALIDATION et supportBy de l'entité validation si isClosed == false, getFinishedStatus si true
         $validation = $this->repositoryValidation->findOneBy(['id' => $idValidation]);
-        if (!$validation)
-        {
-            return new JsonResponse(['message' => 'Validation non trouvée.'], Response::HTTP_NOT_FOUND);
+        if (!$validation) {
+            return new JsonResponse(['error' => true, 'message' => 'Validation non trouvée.'], Response::HTTP_NOT_FOUND);
         }
         $dataRequest = $this->serializer->decode($request->getContent(), 'json');
-        if (!isset($dataRequest['closeContent']))
-        {
-            return new JsonResponse(['message' => 'Il faut mettre un commentaire de prise en charge.'], Response::HTTP_NOT_FOUND);
+        if (!isset($dataRequest['closeContent'])) {
+            return new JsonResponse(['error' => true, 'message' => 'Il faut mettre un commentaire de prise en charge.'], Response::HTTP_NOT_FOUND);
         }
         $validation->setSupportBy($user);
         $validation->setCloseContent($dataRequest['closeContent']);
@@ -178,14 +214,10 @@ final class EmployeesController extends AbstractController
 
         $ride = $this->repositoryRide->findOneBy(['id' => $validation->getRide()->getId()]);
 
-        if (isset($dataRequest['isClosed']) && $dataRequest['isClosed'] === true)
-        {
+        if (isset($dataRequest['isClosed']) && $dataRequest['isClosed'] === true) {
             $validation->setIsClosed(true);
             $validation->setClosedBy($user);
-
-            //Si le user est le dernier à valider, on vérifie pour payer les différentes parties
             $this->rideService->checkValidationsAndPayment($ride);
-
             $returnMessage = 'Validation clôturée. Covoiturage terminé.';
         } else {
             $ride->setStatus('AWAITINGVALIDATION');
@@ -194,11 +226,9 @@ final class EmployeesController extends AbstractController
         }
 
         $this->manager->persist($validation);
-
         $this->manager->persist($ride);
         $this->manager->flush();
 
-        //Ajout du commentaire de prise en charge dans MongoDB pour historique
         $this->mongoService->addValidationHistory($ride, $validation, $user, $dataRequest['closeContent'], $dataRequest['isClosed']);
 
         return new JsonResponse(['success' => true, 'message' => $returnMessage], Response::HTTP_OK);
