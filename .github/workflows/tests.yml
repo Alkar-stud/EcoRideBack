@@ -1,0 +1,39 @@
+# Nom du workflow
+name: Tests PHP
+
+# Déclencheurs
+on:
+  push:
+    branches: [ tests ]
+  pull_request:
+    branches: [ tests ]
+
+# Jobs à exécuter
+jobs:
+  tests:
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Récupérer le code
+      - uses: actions/checkout@v3
+      
+      # Configurer PHP
+      - name: Configurer PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, dom, filter, mongodb
+          coverage: xdebug
+      
+      # Installer les dépendances
+      - name: Installer les dépendances
+        run: composer install --prefer-dist
+      
+      # Exécuter les tests
+      - name: Exécuter les tests
+        run: ./vendor/bin/phpunit
+      
+      # Générer un rapport de couverture
+      - name: Générer la couverture de code
+        run: ./vendor/bin/phpunit --coverage-clover coverage.xml
