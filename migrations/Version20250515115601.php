@@ -19,7 +19,7 @@ final class Version20250515115601 extends AbstractMigration
         $this->addSql(<<<'SQL'
             INSERT INTO ecoride (libelle, parameter_value, created_at) VALUES 
                 ('START_CREDIT', '20000', NOW()), 
-                ('TOTAL_CREDIT', '20000', NOW()), 
+                ('TOTAL_CREDIT', '19880', NOW()), 
                 ('WELCOME_CREDIT', '20', NOW()), 
                 ('PLATFORM_COMMISSION_CREDIT', '2', NOW()),
                 ('DEFAULT_RIDE_STATUS', 'COMING', NOW()), 

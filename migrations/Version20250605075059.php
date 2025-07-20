@@ -24,7 +24,7 @@ final class Version20250605075059 extends AbstractMigration
             (3, 'ecoridestud+passenger@alwaysdata.net', '[]', '$2y$13$A7mN8xmw7/JebrAq8wDPkOrj5JUzu0wmnYpt9gB85Gqj1fIt0wqy6', 'Passager', NULL, 150, NULL, 0, 1, 'b68c64124987c8a459212956185890fe6c4014c610b72e64c2e4dddc7df6818d', 1, NOW()),
             (4, 'ecoridestud+both@alwaysdata.net', '[]', '$2y$13$HnS0kRmcgppbU8zIm8tY8evDBqg9KUI/aJeaZNdqNk1StJbM2qOy6', 'Both', NULL, 150, NULL, 1, 1, '20b70d4134a344ef418beed6927d393536af3f9c58f1d3de5f4ebdf2e12656c5', 1, NOW()),
             (5, 'ecoridestud+employee@alwaysdata.net', '["employee"]', '$2y$13$LjIjgKZHZz5ACwxW0coxTe/rA8O.NY.zhLdXjlmD5aU7jZquGVCF2', 'Employé', NULL, 0, NULL, 0, 0, '6ba2e9eca47fa6501d49f3b9e1e7fddc647ddd68dd94842f74cd259b15890818', 1, NOW()),
-            (6, 'ecoridestud+employee2@alwaysdata.net', '["employee"]', '$2y$13$aRZ0WvZZy5xTFphjNwMmvuLqRWb8.k98S0ZIU.5jcUjAaGJo3xLSK', 'EmployéInactif', NULL, 0, NULL, 0, 0, '6ba2e9eca47fa6501d49f3b9e1e7fddc647ddd68dd94842f74cd259b15890817', 0, NOW());
+            (6, 'ecoridestud+employee2@alwaysdata.net', '["employee"]', '$2y$13$ryfNUSLcO2AMglj3MUxGpO7FlzXXltWdlDjYbLyT2GY6Ec7e.SrPm', 'EmployéInactif', NULL, 0, NULL, 0, 0, 'd88a55c12da322bfce438004a7f5344e260fb176f8ad60b8b9b16a23cc188a40', 0, NOW());
         SQL);
 
     }

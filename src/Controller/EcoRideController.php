@@ -141,22 +141,17 @@ final class EcoRideController extends AbstractController{
     )]
     public function showById(int $id): JsonResponse
     {
-
         $ecoride = $this->repository->findOneBy(['id' => $id]);
         if ($ecoride) {
+            $responseData = $this->serializer->serialize($ecoride, 'json');
             return new JsonResponse(
                 [
                     'success' => true,
-                    'id'  => $ecoride->getId(),
-                    'libelle'  => $ecoride->getLibelle(),
-                    'parameterValue' => $ecoride->getParameterValue(),
-                    'createdAt' => $ecoride->getCreatedAt(),
-                    'updateAt' => $ecoride->getUpdatedAt()
+                    'data' => json_decode($responseData)
                 ],
                 Response::HTTP_OK
             );
         }
-
         return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
@@ -178,19 +173,15 @@ final class EcoRideController extends AbstractController{
     {
         $ecoride = $this->repository->findOneBy(['libelle' => $libelle]);
         if ($ecoride) {
+            $responseData = $this->serializer->serialize($ecoride, 'json');
             return new JsonResponse(
                 [
                     'success' => true,
-                    'id'  => $ecoride->getId(),
-                    'libelle'  => $ecoride->getLibelle(),
-                    'parameterValue' => $ecoride->getParameterValue(),
-                    'createdAt' => $ecoride->getCreatedAt(),
-                    'updateAt' => $ecoride->getUpdatedAt()
+                    'data' => json_decode($responseData)
                 ],
                 Response::HTTP_OK
             );
         }
-
         return new JsonResponse(['error' => true, 'message' => 'Paramètre non trouvé'], Response::HTTP_NOT_FOUND);
     }
 
@@ -203,11 +194,7 @@ final class EcoRideController extends AbstractController{
             description: "Données du paramètre à ajouter",
             required: true,
             content: [new MediaType(mediaType:"application/json",
-                schema: new Schema(properties: [new Property(
-                    property: "libelle",
-                    type: "string",
-                    example: "CONFIG_DEFAULT_ID"
-                ),
+                schema: new Schema(properties: [
                     new Property(
                         property: "parameterValue",
                         type: "string",
@@ -243,14 +230,12 @@ final class EcoRideController extends AbstractController{
 
             $this->manager->flush();
 
+            $responseData = $this->serializer->serialize($ecoride, 'json');
+
             return new JsonResponse(
                 [
                     'success' => true,
-                    'id'  => $ecoride->getId(),
-                    'libelle'  => $ecoride->getLibelle(),
-                    'parameterValue' => $ecoride->getParameterValue(),
-                    'createdAt' => $ecoride->getCreatedAt(),
-                    'updateAt' => $ecoride->getUpdatedAt()
+                    'data' => json_decode($responseData)
                 ],
                 Response::HTTP_OK
             );
