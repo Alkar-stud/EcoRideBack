@@ -565,9 +565,9 @@ class SecurityController extends AbstractController
         return $resizedImage;
     }
 
-    #[Route('/forgot-password', name: 'forgot_password', methods: 'POST')]
+    #[Route('/forgotPassword', name: 'forgotPassword', methods: 'POST')]
     #[OA\Post(
-        path:"/api/forgot-password",
+        path:"/api/forgotPassword",
         summary:"Réinitialiser le mot de passe d'un utilisateur",
         requestBody :new RequestBody(
             description: "Email de l'utilisateur",

@@ -19,7 +19,12 @@ final class Version20250516113841 extends AbstractMigration
 
         //Add content
         $this->addSql(<<<'SQL'
-            INSERT INTO `mails_type` (`code`, `subject`, `content`, `created_at`) VALUES ('cancel', 'EcoRide - Annulation du covoiturage du {date}', 'Bonjour, <br> le covoiturage du {date} a été annulé.', NOW()), ('passengerValidation', 'EcoRide - Comment s&#039;est passé votre covoiturage ?', 'Comment s&#039;est passé votre covoiturage ? Vous devez valider et si vous souhaitez donner votre avis', NOW()), ('accountUserCreate', 'EcoRide - Bienvenue chez nous', 'Bonjour {pseudo} et bienvenue chez nous !', NOW()), ('forgotPassword', 'EcoRide - Vous avez oublié votre mot de passe ?', 'Bonjour, <br />br&gt;veuillez trouver ci dessous votre mot de passe temporaire.', NOW()), ('vehicleIsChanged', 'EcoRide - changement pour le covoiturage du {date}', 'Bonjour\n<br>\nLe chauffeur a modifié le véhicule prévu pour ce covoiturage, vous pouvez le voir dans votre espace.\n\nCordialement,\n\nEcoRide', NOW())
+            INSERT INTO `mails_type` (`code`, `subject`, `content`, `created_at`) VALUES
+                ('cancel', 'EcoRide - Annulation du covoiturage du {rideDate}', 'Bonjour, <br> le covoiturage du {rideDate} a été annulé.', NOW()),
+                ('passengerValidation', 'EcoRide - Comment s&#039;est passé votre covoiturage ?', 'Comment s&#039;est passé votre covoiturage ? Vous devez valider et si vous souhaitez donner votre avis', NOW()),
+                ('accountUserCreate', 'EcoRide - Bienvenue chez nous', 'Bonjour {pseudo} et bienvenue chez nous !', NOW()),
+                ('forgotPassword', 'EcoRide - Vous avez oublié votre mot de passe ?', '<p>Bonjour {pseudo},</p>\n<p>Votre mot de passe a été réinitialisé comme demandé.</p>\n\n<p>Votre nouveau mot de passe est : <strong>{newPassword}</strong></p>\n\n<p>Nous vous recommandons de changer ce mot de passe dès votre prochaine connexion.</p>\n<p>L\'équipe EcoRide</p>', NOW()),
+                ('vehicleIsChanged', 'EcoRide - changement pour le covoiturage du {date}', 'Bonjour\n<br>\nLe chauffeur a modifié le véhicule prévu pour ce covoiturage, vous pouvez le voir dans votre espace.\n\nCordialement,\n\nEcoRide', NOW());
         SQL);
     }
 
