@@ -143,11 +143,7 @@ class RideRepository extends ServiceEntityRepository
                 ->setParameter('MinDriverGrade', $criteria['MinDriverGrade']);
         }
 
-        if (isset($criteria['isEco']) && $criteria['isEco'] === true) {
-            $qb->leftJoin('r.vehicle', 'v')
-                ->andWhere('v.energy = :ecoEnergy')
-                ->setParameter('ecoEnergy', 'ECO');
-        }
+
     }
 
     /**

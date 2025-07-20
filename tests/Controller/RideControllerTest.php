@@ -204,7 +204,7 @@ class RideControllerTest extends WebTestCase
 
         // Vérification du contenu
         $responseContent = json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertEquals($ride->getId(), $responseContent['id']);
+        $this->assertEquals($ride->getId(), $responseContent['data']['id']);
     }
 
 
@@ -614,11 +614,6 @@ class RideControllerTest extends WebTestCase
 
         // Vérification du message d'erreur
         $responseContent = json_decode($this->client->getResponse()->getContent(), true);
-        if ($responseContent !== null && isset($responseContent['message'])) {
-            $this->assertStringContainsString('ne peut pas être modifié', $responseContent['message']);
-        } else {
-            $this->fail('La réponse ne contient pas de message d\'erreur attendu.');
-        }
         $this->assertStringContainsString('ne peut pas être modifié', $responseContent['message']);
 
         // Vérifier que les données n'ont pas été modifiées
@@ -628,7 +623,96 @@ class RideControllerTest extends WebTestCase
     }
 
 
+    /**
+     * Test fonctionnel : Inscription à un covoiturage Brest -> Strasbourg
+     */
+    public function testInscriptionCovoiturageBrestStrasbourgPuisDesinscription(): void
+    {
+        // Utilisation du client déjà initialisé dans setUp()
+        // Authentification du passager
+        $this->client->request('POST', '/api/login', [], [], [
+            'CONTENT_TYPE' => 'application/json'
+        ], json_encode([
+            'email' => 'ecoridestud+passenger@alwaysdata.net',
+            'password' => 'M0t de passe'
+        ]));
+        $this->assertResponseIsSuccessful();
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $token = $data['apiToken'] ?? null;
+        $this->assertNotNull($token, 'Token JWT non récupéré');
 
+// Avant la recherche, crée le covoiturage attendu
+        $ride = new Ride();
+        $ride->setVehicle($this->vehicle);
+        $ride->setDriver($this->testUser);
+        $ride->setStartingStreet('Rue de Brest');
+        $ride->setStartingPostCode('29200');
+        $ride->setStartingCity('Brest');
+        $ride->setArrivalStreet('Rue de Strasbourg');
+        $ride->setArrivalPostCode('67000');
+        $ride->setArrivalCity('Strasbourg');
+        $ride->setStartingAt(new DateTimeImmutable('2025-08-02 08:00:00'));
+        $ride->setArrivalAt(new DateTimeImmutable('2025-08-02 18:00:00'));
+        $ride->setPrice(50);
+        $ride->setNbPlacesAvailable(3);
+        $ride->setCreatedAt(new DateTimeImmutable());
+        $ride->setStatus('COMING');
+        $this->entityManager->persist($ride);
+        $this->entityManager->flush();
 
+        // Recherche du covoiturage Brest -> Strasbourg le 02/08/2025
+        $this->client->request(
+            'POST',
+            '/api/ride/search',
+            [],
+            [],
+            [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_Authorization' => 'X-AUTH-TOKEN ' . $token
+            ],
+            json_encode([
+                'startingAddress' => [
+                    'postcode' => '29200',
+                    'city' => 'Brest'
+                ],
+                'arrivalAddress' => [
+                    'postcode' => '67000',
+                    'city' => 'Strasbourg'
+                ],
+                'startingAt' => '2025-08-02'
+            ])
+        );
+        $this->assertResponseIsSuccessful();
+        $searchResponse = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('rides', $searchResponse, 'La clé rides est absente de la réponse');
+        $this->assertNotEmpty($searchResponse['rides'], 'Aucun covoiturage trouvé');
+        $rideId = $searchResponse['rides'][0]['ride']['id'];
 
+        // Réservation d'une place
+        $this->client->request(
+            'PUT',
+            "/api/ride/{$rideId}/addUser",
+            [], // paramètres
+            [], // fichiers
+            [ 'HTTP_X_AUTH_TOKEN' => $token ] // headers
+        );
+        $this->assertResponseIsSuccessful();
+        $response = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('success', $response);
+        $this->assertTrue($response['success']);
+
+        // Réservation d'une place
+        $this->client->request(
+            'PUT',
+            "/api/ride/{$rideId}/removeUser",
+            [], // paramètres
+            [], // fichiers
+            [ 'HTTP_X_AUTH_TOKEN' => $token ] // headers
+        );
+        $this->assertResponseIsSuccessful();
+        $response = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('success', $response);
+        $this->assertTrue($response['success']);
+    }
 }
+

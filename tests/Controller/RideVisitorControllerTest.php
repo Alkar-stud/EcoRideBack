@@ -13,9 +13,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RideVisitorControllerTest extends WebTestCase
 {
-    private $client;
-    private $entityManager;
-    private $testUser;
+    private \Symfony\Bundle\FrameworkBundle\KernelBrowser $client;
+    private ?object $entityManager;
+    private User $testUser;
     private $ride;
 
     protected function setUp(): void
@@ -133,7 +133,7 @@ class RideVisitorControllerTest extends WebTestCase
     {
         $uniqueId = uniqid(); // Generate a unique ID once per user
         $user = new User();
-        $user->setEmail($prefix . $uniqueId . '@example.com'); // Use the unique ID once
+        $user->setEmail($prefix); // Use the unique ID once
         $user->setPseudo('User' . $uniqueId);
         $user->setPassword(
             $this->client->getContainer()->get(UserPasswordHasherInterface::class)
@@ -189,9 +189,9 @@ class RideVisitorControllerTest extends WebTestCase
         return $ride;
     }
 
-    private function createEcoRide(string $libelle, int $parameterValue): \App\Entity\EcoRide
+    private function createEcoRide(string $libelle, int $parameterValue): \App\Entity\Ecoride
     {
-        $ecoRide = new \App\Entity\EcoRide();
+        $ecoRide = new \App\Entity\Ecoride();
         $ecoRide->setLibelle($libelle);
         $ecoRide->setParameterValue($parameterValue);
         $ecoRide->setCreatedAt(new DateTimeImmutable());
@@ -292,10 +292,10 @@ class RideVisitorControllerTest extends WebTestCase
             'CONTENT_TYPE' => 'application/json'
         ];
 
-        // Récupérer les entités EcoRide existantes
-        $platformCommission = $this->entityManager->getRepository(\App\Entity\EcoRide::class)
+        // Récupérer les entités Ecoride existantes
+        $platformCommission = $this->entityManager->getRepository(\App\Entity\Ecoride::class)
             ->findOneBy(['libelle' => 'PLATFORM_COMMISSION_CREDIT']);
-        $ecoRideTotal = $this->entityManager->getRepository(\App\Entity\EcoRide::class)
+        $ecoRideTotal = $this->entityManager->getRepository(\App\Entity\Ecoride::class)
             ->findOneBy(['libelle' => 'TOTAL_CREDIT']);
 
         // Si les entités n'existent pas, vous pouvez les créer ici
