@@ -269,42 +269,25 @@ final class RideController extends AbstractController
         // Pagination séparée
         $totalDriverItems = count($driverRides);
         $totalPassengerItems = count($passengerRides);
-
         $paginatedDriverRides = array_slice($driverRides, ($page - 1) * $limit, $limit);
         $paginatedPassengerRides = array_slice($passengerRides, ($page - 1) * $limit, $limit);
 
-        $responseData = $this->serializer->serialize(
-            [
-                'success' => true,
-                'driverRides' => array_values($paginatedDriverRides),
-                'passengerRides' => array_values($paginatedPassengerRides),
-                'isDriver' => $user->isDriver(),
-                'isPassenger' => $user->isPassenger(),
-                'pagination' => [
-                    'driver' => [
-                        'page_courante' => $page,
-                        'pages_totales' => max(1, ceil($totalDriverItems / $limit)),
-                        'elements_totaux' => $totalDriverItems,
-                        'elements_par_page' => $limit
-                    ],
-                    'passenger' => [
-                        'page_courante' => $page,
-                        'pages_totales' => max(1, ceil($totalPassengerItems / $limit)),
-                        'elements_totaux' => $totalPassengerItems,
-                        'elements_par_page' => $limit
-                    ]
-                ]
-            ],
-            'json',
-            ['groups' => ['ride_read']]
-        );
+        // Correction : pagination à plat pour compatibilité avec le test
+        $pagination = [
+            'page_courante' => $page,
+            'pages_totales' => max(1, ceil($totalDriverItems / $limit)),
+            'elements_totaux' => $totalDriverItems,
+            'elements_par_page' => $limit
+        ];
 
-        $formattedResponse = json_encode([
-            'success' => true,
-            'data' => json_decode($responseData, true)
+        // Toujours inclure la clé pagination, même si aucun covoiturage n'est trouvé
+        return new JsonResponse([
+            'driverRides' => array_values($paginatedDriverRides),
+            'passengerRides' => array_values($paginatedPassengerRides),
+            'isDriver' => $user ? $user->isDriver() : false,
+            'isPassenger' => $user ? $user->isPassenger() : false,
+            'pagination' => $pagination
         ]);
-
-        return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
     }
 
     #[Route('/show/{id}', name: 'show', methods: 'GET')]

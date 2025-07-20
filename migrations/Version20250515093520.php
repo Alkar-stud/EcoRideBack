@@ -16,6 +16,12 @@ final class Version20250515093520 extends AbstractMigration
         $this->addSql(<<<'SQL'
             CREATE TABLE user (id INT AUTO_INCREMENT NOT NULL, email VARCHAR(180) NOT NULL, roles JSON NOT NULL, password VARCHAR(255) NOT NULL, pseudo VARCHAR(255) NOT NULL, photo VARCHAR(255) DEFAULT NULL, credits INT NOT NULL, grade INT DEFAULT NULL, is_driver TINYINT(1) NOT NULL, is_passenger TINYINT(1) NOT NULL, api_token VARCHAR(64) NOT NULL, is_active TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', UNIQUE INDEX UNIQ_IDENTIFIER_EMAIL (email), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB
         SQL);
+
+        //Add content
+        $this->addSql(<<<'SQL'
+            INSERT INTO `user` (`id`, `email`, `roles`, `password`, `pseudo`, `photo`, `credits`, `grade`, `is_driver`, `is_passenger`, `api_token`, `is_active`, `created_at`) VALUES
+            (1, 'ecoridestud+admin@alwaysdata.net', '["admin"]', '$2y$13$r.iH55Y3TpA3MJKo7DeMpu0n1h1nYEBsBltwWuQTHR1r9rN/.btUS', 'Admin', NULL, 0, NULL, 0, 0, '86135ae9-54e8-46a7-997c-f3dd345d8b5d48cada49fd53e8b20070', 1, NOW());
+        SQL);
     }
 
     public function down(Schema $schema): void

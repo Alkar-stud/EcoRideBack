@@ -448,7 +448,8 @@ final class RideParticipationController extends AbstractController
         if (isset($isEco)) {
             // Filtrer rideBefore si nécessaire
             if ($rideBefore) {
-                $vehicle = $rideBefore->getVehicle();
+                $rideObj = is_array($rideBefore) ? $rideBefore['ride'] : $rideBefore;
+                $vehicle = $rideObj ? $rideObj->getVehicle() : null;
                 $isRideEco = ($vehicle && $vehicle->getEnergy() === 'ECO');
                 if ($isEco !== $isRideEco) {
                     $rideBefore = null;

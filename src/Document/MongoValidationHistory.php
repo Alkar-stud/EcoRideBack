@@ -22,7 +22,7 @@ class MongoValidationHistory
     #[MongoDB\Field(type: "string")]
     private ?string $addContent;
 
-    #[MongoDB\Field(type: "boolean")]
+    #[MongoDB\Field(type: "bool")]
     private ?bool $isClosed;
 
     #[MongoDB\Field(type: "int")]
