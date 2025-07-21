@@ -10,6 +10,7 @@ use App\Repository\RideRepository;
 use App\Service\RideService;
 use App\Service\AddressValidator;
 use DateTimeImmutable;
+use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Nelmio\ApiDocBundle\Attribute\Areas;
@@ -45,6 +46,7 @@ final class RideController extends AbstractController
         private readonly SerializerInterface    $serializer,
         private readonly RideService            $rideService,
         private readonly AddressValidator       $addressValidator,
+        private readonly DocumentManager        $documentManager,
     )
     {
     }
@@ -323,29 +325,55 @@ final class RideController extends AbstractController
             return new JsonResponse(['error' => true, 'message' => 'Ce covoiturage n\'existe pas'], Response::HTTP_NOT_FOUND);
         }
 
-        if ($user) {
-            $responseData = $this->serializer->serialize(
-                $ride,
-                'json',
-                ['groups' => ['ride_read', 'ride_detail']]
-            );
-        } else {
-            $responseData = $this->serializer->serialize(
-                $ride,
-                'json',
-                ['groups' => ['ride_read']]
-            );
-        }
-        // Décoder les données pour les placer dans la structure souhaitée
+        $responseData = $this->serializer->serialize(
+            $ride,
+            'json',
+            ['groups' => $user ? ['ride_read', 'ride_detail'] : ['ride_read']]
+        );
         $rideData = json_decode($responseData, true);
 
-        // Créer la structure de réponse
-        $formattedResponse = json_encode([
+        // Récupère le conducteur
+        $driver = $ride->getDriver();
+
+        // Récupère les 3 derniers trajets terminés du conducteur
+        $lastFinishedRides = $this->repository->createQueryBuilder('r')
+            ->where('r.driver = :driver')
+            ->andWhere('r.status = :status')
+            ->setParameter('driver', $driver)
+            ->setParameter('status', 'FINISHED')
+            ->orderBy('r.startingAt', 'DESC')
+            ->setMaxResults(3)
+            ->getQuery()
+            ->getResult();
+
+        // Récupère les avis validés pour ces trajets
+        $notices = [];
+        foreach ($lastFinishedRides as $finishedRide) {
+            $rideNotices = $this->documentManager->getRepository(\App\Document\MongoRideNotice::class)
+                ->findBy(['relatedFor' => $finishedRide->getId(), 'status' => 'VALIDATED'], ['createdAt' => -1]);
+
+            foreach ($rideNotices as $notice) {
+                $notices[] = [
+                    'title' => $notice->getTitle(),
+                    'content' => $notice->getContent(),
+                    'grade' => $notice->getGrade(),
+                    'createdAt' => $notice->getCreatedAt() ? $notice->getCreatedAt()->format('Y-m-d H:i:s') : null,
+                    'relatedFor' => $notice->getRelatedFor(),
+                ];
+            }
+        }
+
+        // Ajoute les avis dans la partie driver
+        if (isset($rideData['driver'])) {
+            $rideData['driver']['notices'] = $notices;
+        }
+
+        $formattedResponse = [
             'success' => true,
             'data' => $rideData
-        ]);
+        ];
 
-        return new JsonResponse($formattedResponse, Response::HTTP_OK, [], true);
+        return new JsonResponse($formattedResponse, Response::HTTP_OK);
     }
 
     /**
