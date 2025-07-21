@@ -11,6 +11,8 @@ Ce projet est réalisé dans le cadre de l'ECF de Studi.
 2. Remplacer les mots de passe 'fake' présents dans docker-compose.yml par les vôtres
 3. Dans le répertoire du projet, lancer `docker compose up -d --build`
 4. Puis `docker compose exec app php bin/console doctrine:migrations:migrate --no-interaction`
+5. Puis `docker compose exec app php bin/console doctrine:fixtures:load --purge-exclusions=user --purge-exclusions=mails_type --purge-exclusions=ecoride --no-interaction` pour ajouter des exemples sans effacer les tables mysql nécessaires
+6. Puis `docker compose exec app bin/console doctrine:mongodb:fixtures:load` pour ajouter des exemples dans les collections MongoDB
 
 
 Une fois l'installation terminée, le backend est disponible ici https://localhost:8000.
