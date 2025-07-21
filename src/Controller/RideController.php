@@ -280,13 +280,24 @@ final class RideController extends AbstractController
             'elements_par_page' => $limit
         ];
 
-        // Toujours inclure la clé pagination, même si aucun covoiturage n'est trouvé
+        $driverRidesData = json_decode(
+            $this->serializer->serialize($paginatedDriverRides, 'json', ['groups' => ['ride_read']]),
+            true
+        );
+        $passengerRidesData = json_decode(
+            $this->serializer->serialize($paginatedPassengerRides, 'json', ['groups' => ['ride_read']]),
+            true
+        );
+
         return new JsonResponse([
-            'driverRides' => array_values($paginatedDriverRides),
-            'passengerRides' => array_values($paginatedPassengerRides),
-            'isDriver' => $user ? $user->isDriver() : false,
-            'isPassenger' => $user ? $user->isPassenger() : false,
-            'pagination' => $pagination
+            'success' => true,
+            'data' => [
+                'driverRides' => $driverRidesData,
+                'passengerRides' => $passengerRidesData,
+                'isDriver' => $user ? $user->isDriver() : false,
+                'isPassenger' => $user ? $user->isPassenger() : false,
+                'pagination' => $pagination
+            ]
         ]);
     }
 
